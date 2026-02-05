@@ -5,66 +5,71 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
-user_sessions = {}
+user_sessions = {} # 暫存對話代碼，用於追問入手價
 
-def call_gemini(prompt, model_type="pro"):
+def call_gemini(prompt, mode="pro"):
     from google import genai
-    # 支援 1 到 6 組跨帳號金鑰
+    # 抓取 1 到 6 組跨帳號金鑰
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys: keys = [os.environ.get('GEMINI_API_KEY')]
     
-    # 修正 404 報錯：使用絕對穩定的模型路徑名稱
-    # 分析用 Pro (展現卓見)，輔助用 Flash (快速精簡)
-    target_model = "gemini-1.5-pro" if model_type == "pro" else "gemini-1.5-flash"
+    # 鎖定 2025/2026 穩定版型號
+    # 分析用 Pro (具備思考能力)，輔助用 Flash (極速節流)
+    model_name = "models/gemini-2.5-pro" if mode == "pro" else "models/gemini-2.5-flash"
     
     selected_key = random.choice(keys)
     client = genai.Client(api_key=selected_key)
     
     try:
-        res = client.models.generate_content(model=target_model, contents=prompt)
+        res = client.models.generate_content(model=model_name, contents=prompt)
         return res.text
     except Exception as e:
-        # 如果 Pro 再次遇到 429 或其他限制，自動強制降級 Flash 確保回覆
-        if model_type == "pro":
+        # 自動降級：若 Pro 429 報錯，秒切 Flash 確保不沈默
+        if mode == "pro":
             try:
-                res = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
-                return "⚠️(Pro 配額暫滿，已切換 Flash 專業版分析)\n\n" + res.text
+                res = client.models.generate_content(model="models/gemini-2.5-flash", contents=prompt)
+                return "⚠️(Pro 流量滿載，已切換 Flash 專業分析)\n\n" + res.text
             except: pass
-        return f"☢️ 系統異常 (Key {keys.index(selected_key)+1})：{str(e)[:60]}"
+        return f"☢️ 系統繁忙 (K{keys.index(selected_key)+1})：{str(e)[:60]}"
 
-def fetch_minimal_data(sid):
+def fetch_yahoo_data(sid):
     headers = {'User-Agent': 'Mozilla/5.0'}
-    # 抓取 1mo 剛好覆蓋 20 個交易日 (MA20 完整呈現)
+    # 抓取 1mo 確保 MA20 完整性 (20-22 筆交易日)
     for ext in [".TW", ".TWO"]:
         try:
             url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sid}{ext}?range=1mo&interval=1d"
-            res = requests.get(url, headers=headers, timeout=5).json()
-            p = [x for x in res['chart']['result'][0]['indicators']['quote'][0]['close'] if x]
-            # 確保數據足以完整分析 20 日均線脈絡
-            if len(p) >= 20: return {"id": sid, "p": p[-22:], "m": ext}
+            res = requests.get(url, headers=headers, timeout=6).json()
+            result = res['chart']['result'][0]
+            prices = [p for p in result['indicators']['quote'][0]['close'] if p]
+            if len(prices) >= 20:
+                return {"id": sid, "prices": prices[-22:], "market": "上市" if ext==".TW" else "上櫃"}
         except: continue
     return None
 
-def get_analysis(query, mode="normal"):
-    # 名稱轉代碼：Flash 處理，極速節流
+def get_analysis(query, is_price_mode=False):
+    # 名稱轉代碼：Flash 處理
     nums = re.findall(r'\d{4,6}', query)
     if not nums and re.search(r'[\u4e00-\u9fff]', query):
-        nums = re.findall(r'\d{4,6}', call_gemini(f"將『{query}』轉代碼，只回數字。", model_type="flash"))
+        prompt = f"將『{query}』轉為台股代碼，只回傳純數字(如: 6683)。"
+        nums = re.findall(r'\d{4,6}', call_gemini(prompt, mode="flash"))
     
-    if not nums: return "🔍 請提供代碼或名稱 (如: 分析 6683)。", ""
+    if not nums: return "🔍 找不到代碼。請輸入如『2330』或『分析 雍智』。", ""
 
-    data_list = []
+    final_data = []
+    found_ids = []
     for sid in nums:
-        d = fetch_minimal_data(sid)
-        if d: data_list.append(d)
+        data = fetch_yahoo_data(sid)
+        if data:
+            final_data.append(data)
+            found_ids.append(sid)
     
-    if not data_list: return "❌ 查無市場數據。", ""
+    if not final_data: return f"❌ 市場找不到代碼 {nums} 的數據。", ""
 
-    # 分析與策略：Pro 處理，展現深度見解
-    task = "【入手建議與點位】" if mode=="price" else "【MA20 趨勢與量價診斷】"
-    prompt = f"數據:{data_list}。任務:{task}。要求:擔任首席分析師，針對個股提供深度見解，文字精煉。繁體中文。"
+    # 深度診斷與入手價：Pro 處理，展現卓見
+    task = "【詳細入手價格建議與防守點位】" if is_price_mode else "【MA20 趨勢、量價型態與專業深度診斷】"
+    prompt = f"數據:{final_data}。任務:{task}。要求：扮演首席分析師，給予精確且具見解的評估，文字精煉。繁體中文。"
     
-    return call_gemini(prompt, model_type="pro"), " ".join(nums)
+    return call_gemini(prompt, mode="pro"), " ".join(found_ids)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -79,20 +84,25 @@ def callback():
         msg = event.message.text.strip()
         
         try:
-            # 智慧追問
-            if any(k in msg for k in ["入", "買", "價", "點"]) and uid in user_sessions:
-                ans, _ = get_analysis(user_sessions[uid], mode="price")
+            # 入手價追問邏輯
+            if any(k in msg for k in ["入", "買", "價", "點", "多少"]) and uid in user_sessions:
+                ans, _ = get_analysis(user_sessions[uid], is_price_mode=True)
                 reply = f"針對『{user_sessions[uid]}』的深度策略：\n\n{ans}"
+            
             elif "推薦" in msg:
+                # 推薦模式：固定提供 3 支最佳標的
                 user_sessions[uid] = "2303 3481 2409"
-                reply = "🚀 今日推薦：1.聯電 2.群創 3.友達。\n(您可以追問『入手價？』)"
+                reply = "🚀 AI 今日嚴選推薦：\n1. 聯電 (2303)\n2. 群創 (3481)\n3. 友達 (2409)\n\n您可以接著追問：『入手價建議？』"
+            
             else:
+                # 一般診斷
                 ans, last_ids = get_analysis(msg)
                 if last_ids: user_sessions[uid] = last_ids
                 reply = ans
             
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        except: pass
+        except Exception as e:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"⚠️ 服務稍忙，請重試一次。({str(e)[:30]})"))
 
     try: handler.handle(body, signature)
     except: abort(400)
