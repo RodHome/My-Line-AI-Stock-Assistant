@@ -7,19 +7,19 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-def call_gemini(prompt, model_type="pro"):
+def call_gemini(prompt):
     from google import genai
     client = genai.Client(api_key=os.environ.get('GEMINI_API_KEY'))
-    # 多股比對與專業分析強烈建議使用 Pro 版以維持邏輯完整
-    target_model = "gemini-2.5-pro"
+    # 強制使用 Pro 模型處理複雜的多股邏輯
     try:
-        response = client.models.generate_content(model=target_model, contents=prompt)
+        response = client.models.generate_content(model="gemini-2.5-pro", contents=prompt)
         return response.text
     except Exception as e:
-        return f"AI 系統繁忙，請稍後再試。({str(e)})"
+        return f"AI 系統繁忙，請稍後再試。"
 
 def identify_symbols(user_input):
-    prompt = f"請將『{user_input}』中的所有股票轉為代碼(如 2330.TW, 3017.TW)。只回傳代碼並用逗號隔開，不要有其他文字。"
+    # 強化版辨識 Prompt：要求 AI 從對話中剔除贅字
+    prompt = f"請從以下文字『{user_input}』中提取所有提到的股票，並轉換成台股代碼(如 2330.TW, 3324.TWO)。請排除掉分析、比較等動詞。只回傳代碼，用逗號隔開。"
     result = call_gemini(prompt)
     return [s.strip() for s in result.split(',') if s.strip()]
 
@@ -30,44 +30,50 @@ def fetch_stock_data(symbol):
         res = requests.get(url, headers=headers, timeout=10)
         data = res.json()
         result = data['chart']['result'][0]
+        # 取得名稱（如果有）與收盤價
         closes = [round(c, 2) for c in result['indicators']['quote'][0]['close'] if c is not None]
-        return {"id": symbol, "current": closes[-1], "history": closes}
+        return {"id": symbol, "last": closes[-1], "history": closes}
     except:
         return None
 
 def analyze_and_compare(query):
+    # 1. 獲取代碼清單
     symbols = identify_symbols(query)
-    all_data = [d for s in symbols if (d := fetch_stock_data(s))]
+    all_data = []
+    for s in symbols:
+        data = fetch_stock_data(s)
+        if data: all_data.append(data)
     
-    if not all_data: return "找不到相關股票數據，請確認名稱是否正確。"
+    if not all_data: 
+        return "抱歉，無法從您的輸入中識別有效的股票名稱或代碼，請嘗試更換關鍵字（例如：分析 奇鋐 雙鴻）。"
 
-    # --- 核心 Prompt 優化：強制結構化輸出 ---
+    # 2. 建立專業分析 Prompt，嚴格要求 1. 2. 格式
     prompt = f"""
-    數據清單：{all_data}
-    請扮演資深市場分析師，針對以上『每一支』股票進行獨立診斷與對比。
+    數據來源：{all_data}
     
-    回覆格式請『嚴格遵守』以下邏輯：
+    請扮演『專業市場首席分析師』，針對數據清單中的每一支股票進行深度判讀。
+    
+    回覆內容請嚴格執行以下【固定格式】：
     
     1. 股票名稱(股票代號)
-    分析結果：請從技術面(MA20趨勢)、量價關係、RSI強弱進行專業判讀。給予精闢的點評。
+    分析結果：(請比照專業投顧報告，針對 MA20 趨勢、量價關係、K線型態進行深度解析，給予技術面與籌碼面的具體結論)。
     
     2. 股票名稱(股票代號)
-    分析結果：(同上，確保每一支都有獨立段落)
+    分析結果：(同上，確保每一支都有完整獨立的專業診斷)。
     
-    最後，請針對上述比拚對象給予『投資建議』，明確指出哪一支較具優勢，並詳述原因。
+    最後，針對以上比拚對象給予『投資建議』，明確指出誰目前較具潛力或安全性，並詳細說明原因。
     
     限制：
-    - 繁體中文。
-    - 禁止任何開場廢話。
-    - 每一段分析要專業、精煉且具備標點符號。
+    - 繁體中文，禁止任何招呼語或開場白。
+    - 語氣必須嚴謹、專業。
     """
     return call_gemini(prompt)
 
 def get_recommendations():
-    watchlist = ["2330.TW", "2317.TW", "2454.TW", "3481.TW", "2409.TW", "2603.TW", "3037.TW"]
+    watchlist = ["2330.TW", "2317.TW", "3017.TW", "3324.TW", "3481.TW", "2409.TW", "2603.TW"]
     candidates = [d for s in watchlist if (d := fetch_stock_data(s))]
-    prompt = f"從以下數據挑出 2 支技術籌碼皆佳的標的，按上述1.2.格式回覆並給予建議：{candidates}"
-    return "💡 **今日 AI 嚴選推薦**\n\n" + call_gemini(prompt)
+    prompt = f"請從以下清單中，按 1. 2. 格式推薦兩支技術與籌碼皆優的股票：{candidates}"
+    return "💡 **今日 AI 嚴選推薦** 💡\n\n" + call_gemini(prompt)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -80,15 +86,16 @@ def callback():
     def handle_message(event):
         user_text = event.message.text.strip()
         
-        if any(w in user_text for w in ["你會什麼", "功能", "技能"]):
-            reply_msg = "🤖 **AI 股市專家功能：**\n1.「分析 股票A 股票B」：多股專業 PK 與對比\n2.「推薦」：篩選今日優質標的\n3. 支援代碼與中文名稱識別。"
+        if any(w in user_text for w in ["你會什麼", "技能", "功能"]):
+            reply_msg = "🤖 **AI 股市專家功能清單：**\n\n1.「分析 股票A 股票B」：多股專業 PK 與對比報告。\n2.「推薦」：篩選今日具備多頭型態之標的。\n3. 技術指標深度診斷 (MA、RSI、量價)。"
         elif "推薦" in user_text:
             reply_msg = get_recommendations()
         elif "分析" in user_text:
+            # 取得「分析」後的所有文字，交給 AI 去篩選股票名
             query = user_text.replace("分析", "").strip()
             reply_msg = analyze_and_compare(query)
         else:
-            return # 忽略閒聊
+            return
         
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
 
@@ -100,4 +107,4 @@ def callback():
 
 @app.route("/")
 def home():
-    return "專業 PK 助理運行中"
+    return "2026 終極專業版運作中"
