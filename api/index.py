@@ -8,44 +8,40 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# --- 核心 1：多金鑰自動輪替系統 (Load Balancing) ---
 def call_gemini(prompt, use_pro=False):
     from google import genai
+    api_keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 5) if os.environ.get(f'GEMINI_API_KEY_{i}')]
+    if not api_keys: api_keys = [os.environ.get('GEMINI_API_KEY')]
     
-    # 收集環境變數中的所有金鑰 (支援 GEMINI_API_KEY_1 到 _4)
-    api_keys = []
-    for i in range(1, 5):
-        key = os.environ.get(f'GEMINI_API_KEY_{i}')
-        if key: api_keys.append(key)
-    
-    # 備援：若無編號金鑰，則使用原始金鑰
-    if not api_keys:
-        api_keys = [os.environ.get('GEMINI_API_KEY')]
-    
-    # 隨機選擇一組金鑰以分散流量壓力
     selected_key = random.choice(api_keys)
     client = genai.Client(api_key=selected_key)
-    
-    # 設定模型：多股PK用 Pro，其餘用 Flash 節省配額
     target_model = "models/gemini-2.5-pro" if use_pro else "models/gemini-2.5-flash"
     
     try:
         response = client.models.generate_content(model=target_model, contents=prompt)
         return response.text
     except Exception as e:
-        if "429" in str(e):
-            return "⚠️ 目前查詢人數較多導致流量過載，請稍等 30 秒後再試。"
-        return f"AI 系統繁忙，請稍後再試。"
+        return "⚠️ 系統繁忙或流量上限，請稍後再試。"
 
-# --- 核心 2：精準股票代碼提取 ---
-def identify_symbols(user_input):
-    prompt = f"請從文字『{user_input}』中提取股票名並轉為台股代碼(如 2330.TW)。只需回傳代碼並用逗號隔開，嚴禁任何解釋文字。"
+# --- 修正 1：同時提取名稱與代碼 ---
+def identify_stocks_with_names(user_input):
+    prompt = f"""
+    任務：從文字『{user_input}』中提取股票。
+    要求：回傳格式必須為『代碼:名稱』，多支請用逗號隔開。
+    範例：2330.TW:台積電, 3017.TW:奇鋐
+    只需回傳結果，嚴禁廢話。
+    """
     result = call_gemini(prompt, use_pro=False)
-    # 清洗掉可能出現的 Markdown 或空格
-    clean_result = "".join(c for c in result if c.isalnum() or c in ".,")
-    return [s.strip() for s in clean_result.split(',') if s.strip()]
+    stock_map = {}
+    try:
+        items = result.strip().split(',')
+        for item in items:
+            parts = item.split(':')
+            if len(parts) == 2:
+                stock_map[parts[0].strip()] = parts[1].strip()
+    except: pass
+    return stock_map
 
-# --- 核心 3：抓取 Yahoo Finance 數據 ---
 def fetch_stock_data(symbol):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1mo&interval=1d"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -53,51 +49,57 @@ def fetch_stock_data(symbol):
         res = requests.get(url, headers=headers, timeout=8)
         data = res.json()
         result = data['chart']['result'][0]
-        # 取得近一個月的收盤價
         closes = [round(c, 1) for c in result['indicators']['quote'][0]['close'] if c is not None]
         return {"id": symbol, "price": closes[-1], "history": closes[-15:]}
-    except:
-        return None
+    except: return None
 
-# --- 核心 4：多股 PK 與專業診斷邏輯 ---
 def analyze_and_compare(query):
-    symbols = identify_symbols(query)
-    all_data = [d for s in symbols if (d := fetch_stock_data(s))]
+    stock_map = identify_stocks_with_names(query)
+    all_data = []
+    for sym, name in stock_map.items():
+        data = fetch_stock_data(sym)
+        if data:
+            data['name'] = name # 將名稱帶入數據包
+            all_data.append(data)
     
-    if not all_data:
-        return "抱歉，無法識別您輸入的股票。請輸入如『分析 奇鋐 雙鴻』或單純輸入『2330』。"
+    if not all_data: return "無法識別標的，請輸入正確名稱（如：分析 群創 聯電）。"
 
-    is_pk = len(all_data) > 1
     prompt = f"""
-    數據清單：{all_data}
-    請扮演專業市場分析師，依據數據針對每一支股票進行專業判讀。
+    數據：{all_data}
+    請扮演資深操盤手，針對以下每一支股票進行專業分析。
     
-    回覆格式要求：
-    1. 股票名稱(股票代號)
-    分析結果：(請針對 MA20 趨勢、量價關係、RSI 強弱進行精闢點評，並給出具體的『停利』與『停損』建議。)
+    回覆格式要求（極重要）：
+    1. 股票名稱 (股票代號)
+    分析結果：(請針對 MA20 趨勢、量價關係、RSI 進行專業診斷，並標註停利與停損點。)
     
-    2. 股票名稱(股票代號)
-    分析結果：(同上，確保每一支均有獨立編號與診斷。)
-    
-    最後，針對以上比拚對象給予『投資建議』，明確指出優選標的並詳述原因。
-    
-    限制：繁體中文，內容專業精煉，禁止開場廢話。
+    最後給予橫向 PK 建議。請用繁體中文，禁止開場白。
     """
-    return call_gemini(prompt, use_pro=is_pk)
+    return call_gemini(prompt, use_pro=len(all_data) > 1)
 
-# --- 核心 5：今日選股推薦 ---
+# --- 修正 2：更新推薦名單與潛力股邏輯 ---
 def get_recommendations():
-    # 預設觀察名單
-    watchlist = ["2330.TW", "2317.TW", "3017.TW", "3324.TW", "2454.TW"]
-    candidates = [d for s in watchlist if (d := fetch_stock_data(s))]
+    # 觀察清單改為低基期或轉折潛力股：聯電, 群創, 友達, 長榮航, 國泰金
+    watchlist = ["2303.TW", "3481.TW", "2409.TW", "2618.TW", "2882.TW"]
+    all_data = []
+    # 這裡為了顯示名稱，手動對應
+    names = {"2303.TW":"聯電", "3481.TW":"群創", "2409.TW":"友達", "2618.TW":"長榮航", "2882.TW":"國泰金"}
     
-    prompt = f"從以下數據挑選 2 支技術籌碼皆優者，按 1. 2. 格式推薦並詳述原因：{candidates}"
-    return "💡 **今日 AI 嚴選推薦** 💡\n\n" + call_gemini(prompt, use_pro=False)
+    for s in watchlist:
+        data = fetch_stock_data(s)
+        if data:
+            data['name'] = names[s]
+            all_data.append(data)
+    
+    prompt = f"""
+    數據：{all_data}
+    任務：從中挖掘 2 支『深蹲潛力股』。
+    條件：避開已過度飆漲的高價股，優先選擇底部型態成形、量縮打底完成、或股價相對便宜具補漲潛力的標的。
+    格式：1. 股票名稱 (股票代號) - 推薦理由。字數 250 內。
+    """
+    return "🚀 **今日 AI 潛力股挖掘 (低基期推薦)** 🚀\n\n" + call_gemini(prompt, use_pro=False)
 
-# --- LINE Webhook 主路由 ---
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers.get('X-Signature') # 修正為 X-Line-Signature（若套件需求）
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
     handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET'))
@@ -106,37 +108,20 @@ def callback():
     @handler.add(MessageEvent, message=TextMessage)
     def handle_message(event):
         user_text = event.message.text.strip()
-        
-        # 1. 技能介紹
-        if any(w in user_text for w in ["你會什麼", "技能", "功能", "help"]):
-            reply_msg = """🤖 **AI 股市專家功能清單：**
-            
-1. **多股 PK**：輸入「分析 奇鋐 雙鴻」。
-2. **快速診斷**：直接輸入股票代碼「2330」。
-3. **智慧推薦**：直接輸入「推薦」。
-4. **格式規範**：包含專業趨勢判讀與停利停損點。"""
-
-        # 2. 推薦功能
+        if any(w in user_text for w in ["你會什麼", "技能"]):
+            reply_msg = "🤖 **AI 股市專家：**\n1.「分析 股票」：專業 PK (含名稱)\n2.「推薦」：挖掘深蹲潛力股"
         elif "推薦" in user_text:
             reply_msg = get_recommendations()
-        
-        # 3. 分析功能 (包含關鍵字或純數字偵測)
         elif "分析" in user_text or user_text.isdigit():
             query = user_text.replace("分析", "").strip()
             reply_msg = analyze_and_compare(query)
-            
-        # 4. Fallback：避免已讀不回
-        else:
-            reply_msg = "您好！請輸入「分析 + 股票名稱」或直接輸入「代碼(如: 2330)」進行診斷。"
+        else: return
         
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
 
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
+    try: handler.handle(body, signature)
+    except InvalidSignatureError: abort(400)
     return 'OK'
 
 @app.route("/")
-def home():
-    return "Gemini 2.5 旗艦版助理運作中"
+def home(): return "2026 專業分析助理已上線"
