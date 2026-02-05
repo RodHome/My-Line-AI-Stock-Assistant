@@ -16,24 +16,18 @@ def ask_gemini(prompt):
     try:
         client = genai.Client(api_key=api_key)
         
-        # 2026 年優先使用 2.0 模型
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                contents=prompt
-            )
-            return response.text
-        except Exception as e:
-            # 如果 404，嘗試抓取目前該 Key 可用的模型清單
-            models = client.models.list()
-            model_list = [m.name for m in models]
-            return f"模型 404。你的 Key 目前支援的模型有：\n" + "\n".join(model_list[:5])
+        # 根據 image_bebf43.png，直接使用你 Key 支援的 2.5 版本
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", 
+            contents=prompt
+        )
+        return response.text
             
     except Exception as e:
-        return f"AI 系統崩潰：{str(e)}"
+        return f"AI 最終報錯：{str(e)}。請確認模型名稱是否正確。"
 
 def get_stock_analysis(stock_id):
-    # 判斷代碼格式
+    # 判斷代碼格式 (台股 4 碼則補 .TW)
     symbol = f"{stock_id}.TW" if stock_id.isdigit() and len(stock_id) == 4 else stock_id
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=7d&interval=1d"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -48,14 +42,14 @@ def get_stock_analysis(stock_id):
         closes = [round(c, 2) for c in result[0]['indicators']['quote'][0]['close'] if c is not None]
         data_summary = f"{stock_id} 最近五天收盤價: {closes[-5:]}"
         
-        prompt = f"你是一位專業分析師。以下是數據：\n{data_summary}\n請給予繁體中文建議。"
+        prompt = f"你是一位專業分析師。以下是數據：\n{data_summary}\n請給予繁體中文操作建議。"
         return ask_gemini(prompt)
     except Exception as e:
-        return f"股市數據抓取失敗：{str(e)}"
+        return f"數據獲取失敗：{str(e)}"
 
 @app.route("/")
 def home():
-    return "2026 最終修復版運行中"
+    return "Gemini 2.5 AI 助理已就緒"
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -72,7 +66,7 @@ def callback():
             stock_id = user_text.replace("分析", "").strip()
             reply_msg = get_stock_analysis(stock_id)
         else:
-            reply_msg = "連線成功！請輸入「分析 2330」。"
+            reply_msg = "連線成功！請輸入「分析 2330」來測試最新的 Gemini 2.5。"
         
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
 
