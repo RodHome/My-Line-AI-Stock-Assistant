@@ -43,15 +43,19 @@ def identify_stocks_with_names(user_input):
     return stock_map
 
 def fetch_stock_data(symbol):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1mo&interval=1d"
+    # 修改 range 為 2mo (兩個月) 以確保有足夠交易日，避免遇到連假導致數據不足
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=2mo&interval=1d"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         res = requests.get(url, headers=headers, timeout=8)
         data = res.json()
         result = data['chart']['result'][0]
+        # 取得收盤價，並過濾掉空值
         closes = [round(c, 1) for c in result['indicators']['quote'][0]['close'] if c is not None]
-        return {"id": symbol, "price": closes[-1], "history": closes[-15:]}
-    except: return None
+        # 改為回傳近 35 筆數據 (確保扣除假日後仍有完整 20+ 筆可用於計算 MA20)
+        return {"id": symbol, "price": closes[-1], "history": closes[-35:]}
+    except:
+        return None
 
 def analyze_and_compare(query):
     stock_map = identify_stocks_with_names(query)
