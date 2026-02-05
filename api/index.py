@@ -10,14 +10,26 @@ user_sessions = {}
 
 def call_gemini(prompt, use_pro=True):
     from google import genai
+    # 檢查環境變數
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 5) if os.environ.get(f'GEMINI_API_KEY_{i}')]
-    if not keys: keys = [os.environ.get('GEMINI_API_KEY')]
-    client = genai.Client(api_key=random.choice(keys))
+    if not keys: 
+        keys = [os.environ.get('GEMINI_API_KEY')]
+    
+    if not keys[0]:
+        return "❌ 找不到 API Key，請檢查 Vercel 環境變數設定。"
+
+    selected_key = random.choice(keys)
+    client = genai.Client(api_key=selected_key)
+    
     try:
-        res = client.models.generate_content(model="gemini-2.5-pro" if use_pro else "gemini-2.5-flash", contents=prompt)
+        res = client.models.generate_content(
+            model="gemini-2.5-pro" if use_pro else "gemini-2.5-flash", 
+            contents=prompt
+        )
         return res.text
     except Exception as e:
-        return f"AI 頻道忙碌，請稍後再試。"
+        # 👇 修改這裡：直接回傳報錯內容，不要再回傳「頻道忙碌」
+        return f"☢️ API 報錯內容：{str(e)[:100]}"
 
 # --- 核心：Yahoo 數據抓取 (自動識別上市櫃、保證有資料) ---
 def fetch_yahoo_stable(sid):
