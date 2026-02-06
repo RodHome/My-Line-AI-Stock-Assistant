@@ -9,24 +9,28 @@ user_sessions = {}
 
 def call_gemini(prompt):
     from google import genai
-    # 🎯 核心：讀取 6 支金鑰
+    import time
+    
+    # 🎯 讀取 6 支金鑰
     api_keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not api_keys: api_keys = [os.environ.get('GEMINI_API_KEY')]
     
     random.shuffle(api_keys)
-    # 🎯 策略：直接使用你測試通過的 2.0 Flash，避開 Pro 的嚴格限制
+    # 🎯 優先使用你測試通過的 2.0 Flash
     target_model = "models/gemini-2.0-flash" 
     
-    for key in api_keys:
+    for idx, key in enumerate(api_keys, 1):
         try:
             client = genai.Client(api_key=key)
             res = client.models.generate_content(model=target_model, contents=prompt)
-            if res.text: return res.text, "Gemini_OK"
+            if res.text: return res.text, f"Key_{idx}_Flash"
         except Exception as e:
-            if "429" in str(e): continue
+            if "429" in str(e):
+                time.sleep(0.5) # 🎯 遇到滿載，先睡一下再試下一支
+                continue
             return f"Error: {str(e)[:20]}", "Err"
             
-    return "⚠️ 所有金鑰暫時滿載 (429)，請 1 分鐘後再試。", "Gemini_Limit"
+    return "⚠️ 目前 6 支金鑰皆受到 Google 流量限制 (429)，請於 30 秒後重新輸入代碼查詢。", "Gemini_Limit"
 
 def fetch_finmind_data(stock_id):
     """根據截圖規範使用 data_id"""
