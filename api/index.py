@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v3.2 加入健康檢查 (防崩潰)
-BOT_VERSION = "v3.2 (Stable)"
+# 🟢 [版本號] v3.3 解鎖長文本 (解決回答中斷)
+BOT_VERSION = "v3.3 (LongText)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -24,20 +24,25 @@ STOCK_CACHE = {
 line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET'))
 
-# --- 🆕 健康檢查入口 (讓 Zeabur 知道我們活著) ---
+# --- 健康檢查 (防崩潰) ---
 @app.route("/")
 def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v3_2(prompt, is_detailed=False):
+def call_gemini_v3_3(prompt, is_detailed=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
     
     random.shuffle(keys)
     last_error = "NoKeys"
-    max_tokens = 600 if is_detailed else 250
+    
+    # 💡 關鍵修正：大幅增加 Token 上限
+    # 一般模式 250 -> 400
+    # 策略模式 600 -> 800 (確保能講完停損停利)
+    max_tokens = 800 if is_detailed else 400
+    
     target_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-lite-001"]
 
     for model in target_models:
@@ -48,11 +53,14 @@ def call_gemini_v3_2(prompt, is_detailed=False):
                 params = {'key': key}
                 payload = {
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.4}
+                    "generationConfig": {
+                        "maxOutputTokens": max_tokens, 
+                        "temperature": 0.4 
+                    }
                 }
                 
                 time.sleep(random.uniform(0.5, 1.2))
-                response = requests.post(url, headers=headers, params=params, json=payload, timeout=15)
+                response = requests.post(url, headers=headers, params=params, json=payload, timeout=20) # 延長超時到 20秒
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -77,7 +85,7 @@ def get_stock_id(u_input):
         return None 
     
     prompt = f"Find the 4-digit stock code for Taiwan stock '{clean_name}'. Answer ONLY the 4 digits."
-    res, status = call_gemini_v3_2(prompt)
+    res, status = call_gemini_v3_3(prompt)
     if res:
         match = re.search(r'\d{4}', res)
         if match:
@@ -144,31 +152,30 @@ def handle_message(event):
     t_sheets = int(chips_data['trust'] / 1000)
 
     if is_strategy_mode:
+        # 💡 Prompt 優化：要求 AI 用「條列式」且「精簡」回答，避免廢話
         prompt = (
             f"角色：專業操盤手。\n"
-            f"分析標的：台股 {stock_id}，現價 {price_data['close']}。\n"
-            f"籌碼數據：外資買賣超 {f_sheets} 張，投信買賣超 {t_sheets} 張。\n"
-            f"任務：請給出具體的「操作策略」，包含：\n"
-            f"1. 趨勢判斷 (多/空/盤整)\n"
-            f"2. 建議進場價位區間\n"
-            f"3. 停損點設定\n"
-            f"4. 停利點設定\n"
-            f"請用列點方式回答，語氣專業果斷，不要免責聲明廢話。"
+            f"標的：{stock_id}，現價 {price_data['close']}。\n"
+            f"籌碼：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
+            f"任務：請給出操作策略，嚴格遵守以下格式，不要有前言廢話：\n"
+            f"1.【趨勢】(多/空/盤整)\n"
+            f"2.【區間】(建議進場價)\n"
+            f"3.【停損】(價格)\n"
+            f"4.【停利】(價格)\n"
+            f"5.【短評】(30字內理由)"
         )
-        ai_ans, status = call_gemini_v3_2(prompt, is_detailed=True)
+        ai_ans, status = call_gemini_v3_3(prompt, is_detailed=True)
         reply = f"📈 **{stock_id} 操盤策略**\n現價: {price_data['close']}\n------------------\n{ai_ans}\n------------------\n(系統: {status} | {BOT_VERSION})"
     else:
         prompt = (
             f"標的：{stock_id}，價 {price_data['close']}，外資{f_sheets}張，投信{t_sheets}張。"
-            f"請給 40 字內籌碼技術短評，重點在法人動向。"
+            f"請給 50 字內籌碼短評，直接講結論，不要重複數據。"
         )
-        ai_ans, status = call_gemini_v3_2(prompt, is_detailed=False)
+        ai_ans, status = call_gemini_v3_3(prompt, is_detailed=False)
         reply = f"📊 {stock_id} 收盤: {price_data['close']}\n💰 外資: {f_sheets} 張\n🏦 投信: {t_sheets} 張\n------------------\n🤖 {ai_ans}\n(💡 輸入「建議 {stock_id}」看操作策略)"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    # 💡 這裡有個隱藏重點：雖然我們用 app.run，但有了根目錄 "/"，
-    # Zeabur 的健康檢查就不會因為 404 而報錯崩潰了。
     app.run(host='0.0.0.0', port=port)
