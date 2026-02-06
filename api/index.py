@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v3.2 穩定輸出版 (修正斷尾問題)
-BOT_VERSION = "v3.2 (Stable)"
+# 🟢 [版本號] v3.3 (修正投信 0 張 bug)
+BOT_VERSION = "v3.3 (Fix Trust)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -23,7 +23,7 @@ STOCK_CACHE = {
 line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET'))
 
-# --- AI 核心 (參數優化) ---
+# --- AI 核心 ---
 def call_gemini_pro(prompt):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'): keys = [os.environ.get('GEMINI_API_KEY')]
@@ -37,12 +37,11 @@ def call_gemini_pro(prompt):
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 headers = {'Content-Type': 'application/json'}
                 params = {'key': key}
-                # 💡 優化：長度加倍 (800)，並降低隨機性 (0.3) 讓回答更穩定
+                # 參數維持 v3.2 的穩定設定
                 payload = {
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"maxOutputTokens": 800, "temperature": 0.3}
                 }
-                # 💡 優化：延長超時至 12 秒，避免話沒講完被卡斷
                 time.sleep(random.uniform(0.5, 1.0))
                 response = requests.post(url, headers=headers, params=params, json=payload, timeout=12)
                 
@@ -53,7 +52,7 @@ def call_gemini_pro(prompt):
             except: continue
     return None, "Fail"
 
-# --- 數據抓取 ---
+# --- 數據抓取 (修正判定邏輯) ---
 def fetch_comprehensive_data(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     base_url = "https://api.finmindtrade.com/api/v4/data"
@@ -61,7 +60,7 @@ def fetch_comprehensive_data(stock_id):
     result = {"price": 0, "ma5": None, "ma20": None, "foreign": 0, "trust": 0}
     
     try:
-        # 股價
+        # 1. 股價
         p_res = requests.get(base_url, params={
             "dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start_date, "token": token
         }, timeout=6)
@@ -74,7 +73,7 @@ def fetch_comprehensive_data(stock_id):
         if len(closes) >= 5: result['ma5'] = round(sum(closes[-5:]) / 5, 2)
         if len(closes) >= 20: result['ma20'] = round(sum(closes[-20:]) / 20, 2)
 
-        # 法人
+        # 2. 法人 (修正重點)
         i_res = requests.get(base_url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": stock_id, "start_date": start_date, "token": token
         }, timeout=6)
@@ -83,13 +82,19 @@ def fetch_comprehensive_data(stock_id):
         if i_data:
             last_date = i_data[-1]['date']
             today_chips = [x for x in i_data if x['date'] == last_date]
+            
             for chip in today_chips:
                 name = chip.get('name', '')
                 buy = chip.get('buy', 0) or 0
                 sell = chip.get('sell', 0) or 0
                 net = (buy - sell) // 1000
-                if "Foreign" in name: result['foreign'] += net
-                elif "InvestmentTrust" in name: result['trust'] += net
+                
+                # 💡 修正：把 InvestmentTrust 改為 Trust，避開底線問題
+                if "Foreign" in name: 
+                    result['foreign'] += net
+                elif "Trust" in name: 
+                    result['trust'] += net
+                    
     except: return None
 
     return result
@@ -132,17 +137,16 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 數據異常 {stock_id}"))
         return
 
-    # 準備提示詞
     ma_status = "站上" if data['ma20'] and data['price'] > data['ma20'] else "跌破"
     ma_str = f"MA20 {data['ma20']} ({ma_status})" if data['ma20'] else "MA20 無資料"
     
-    # 💡 Prompt 極度優化：禁止標題，強制直球對決
+    # 提示詞 (保持 v3.2 的極速版設定)
     prompt = (
         f"你是一位嚴格的股市操盤手。分析 {stock_id}。\n"
         f"數據: 收盤{data['price']}, MA5 {data['ma5']}, {ma_str}, "
         f"外資{data['foreign']}張, 投信{data['trust']}張。\n"
         f"【嚴格規定】\n"
-        f"1. 不需要打招呼，不需要標題 (如「技術分析」)。\n"
+        f"1. 不需要打招呼，不需要標題。\n"
         f"2. 直接從「股價...」或「籌碼...」開始講。\n"
         f"3. 繁體中文，80字以內，給出多空建議。"
     )
