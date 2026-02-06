@@ -7,35 +7,40 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v5.0 (Pro-Analyst: 均線+量能+營收+籌碼)
-BOT_VERSION = "v5.0 (Full-Analysis)"
+# 🟢 [版本號] v5.2 (Fix Revenue N/A)
+BOT_VERSION = "v5.2 (Rev-Fix)"
 
-# --- 1. 快取名單 (可自行擴充) ---
+# --- 1. 快取名單 ---
 STOCK_CACHE = {
     "台積電": "2330", "tsmc": "2330", 
     "鴻海": "2317", "聯發科": "2454",
     "長榮": "2603", "陽明": "2609", "萬海": "2615",
     "廣達": "2382", "緯創": "3231", "技嘉": "2376",
-    "群創": "3481", "友達": "2409", "中鋼": "2002"
+    "群創": "3481", "友達": "2409", "中鋼": "2002",
+    "興富發": "2542", "威剛": "3260", "勤美": "1532",
+    "長榮航": "2618", "華航": "2610", "高鐵": "2633",
+    "0050": "0050", "0056": "0056", "00878": "00878", "00929": "00929",
+    "00919": "00919", "00940": "00940"
 }
+
+CODE_TO_NAME = {v: k for k, v in STOCK_CACHE.items()}
 
 line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET'))
 
-# --- 健康檢查 ---
 @app.route("/")
 def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v5(prompt):
+def call_gemini_v5_2(prompt, is_search=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
     
     random.shuffle(keys)
     last_error = "NoKeys"
-    max_tokens = 1200 # 稍微縮短 token 讓回應更精簡
+    max_tokens = 100 if is_search else 1200
     
     target_models = ["gemini-2.5-flash", "gemini-2.0-flash-lite-001", "gemini-flash-latest"]
 
@@ -49,11 +54,11 @@ def call_gemini_v5(prompt):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.3 # 低溫確保理性分析
+                        "temperature": 0.3
                     }
                 }
                 
-                time.sleep(random.uniform(0.3, 0.7)) # 稍微加快速度
+                time.sleep(random.uniform(0.3, 0.7))
                 response = requests.post(url, headers=headers, params=params, json=payload, timeout=10)
                 
                 if response.status_code == 200:
@@ -62,7 +67,7 @@ def call_gemini_v5(prompt):
                     if text: return text.strip(), "Active"
                 else:
                     last_error = f"{response.status_code}"
-            except Exception as e:
+            except:
                 last_error = "Err"
                 continue
     return None, f"Fail({last_error})"
@@ -74,43 +79,65 @@ def clean_input(text):
 def get_stock_id(u_input):
     clean_name = clean_input(u_input)
     if clean_name in STOCK_CACHE: return STOCK_CACHE[clean_name]
-    if clean_name.isdigit() and len(clean_name) == 4: return clean_name
+    if clean_name.isdigit() and len(clean_name) >= 4: return clean_name
     
-    # 若快取找不到，問 AI (通常用於較冷門股票)
-    prompt = f"Find the 4-digit stock code for Taiwan stock '{clean_name}'. Answer ONLY the 4 digits."
-    res, status = call_gemini_v5(prompt)
+    prompt = (
+        f"Identify the 4-digit stock code for Taiwan stock '{clean_name}'. "
+        f"Reply ONLY with the 4-digit number. If unsure, return nothing."
+    )
+    res, status = call_gemini_v5_2(prompt, is_search=True)
     if res:
         match = re.search(r'\d{4}', res)
         if match:
             code = match.group(0)
             STOCK_CACHE[clean_name] = code
+            CODE_TO_NAME[code] = clean_name
             return code
     return None
 
-# --- 🔥 功能 1：基本面 (營收) ---
+def get_stock_name(stock_id, user_input_name=None):
+    if stock_id in CODE_TO_NAME: return CODE_TO_NAME[stock_id]
+    if user_input_name and not user_input_name.isdigit(): return user_input_name
+    return ""
+
+# --- 🔥 功能修正：營收抓取 (防呆 + 延長超時) ---
 def fetch_revenue(stock_id):
+    # 1. ETF 防呆機制：如果是 00 開頭，直接回傳，不查 API
+    if stock_id.startswith("00"):
+        return "ETF無營收數據"
+
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
+    
+    # 2. 抓取範圍擴大一點，避免月初抓不到上個月
     start = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
     params = { "dataset": "TaiwanStockMonthRevenue", "data_id": stock_id, "start_date": start, "token": token }
+    
     try:
-        res = requests.get(url, params=params, timeout=5)
+        # 3. 延長 timeout 到 10 秒
+        res = requests.get(url, params=params, timeout=10)
+        
+        # 4. 檢查狀態碼，若是 429 代表請求太多次
+        if res.status_code == 429:
+            return "API忙碌(429)"
+            
         data = res.json().get('data', [])
         if data:
             latest = data[-1]
             return f"{latest['revenue_month']}月營收年增 {latest['revenue_year_growth_rate']}%"
-        return "營收持平"
-    except: return "營收N/A"
+        return "營收尚未更新"
+    except Exception as e:
+        print(f"Revenue Error: {e}") # 印出錯誤到 Log 方便除錯
+        return "營收讀取失敗"
 
-# --- 🔥 功能 2：技術面 (MA + 量能) ---
+# --- 技術面 ---
 def fetch_technical_data(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
-    # 抓 60 天確保 MA20 計算無誤
     start = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
     params = { "dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start, "token": token }
     try:
-        res = requests.get(url, params=params, timeout=5)
+        res = requests.get(url, params=params, timeout=10)
         data = res.json().get('data', [])
         if not data: return None
         
@@ -118,11 +145,9 @@ def fetch_technical_data(stock_id):
         closes = [d['close'] for d in data]
         volumes = [d['Trading_Volume'] for d in data]
         
-        # 1. 計算均線
         ma5 = round(sum(closes[-5:]) / 5, 2) if len(closes) >= 5 else 0
         ma20 = round(sum(closes[-20:]) / 20, 2) if len(closes) >= 20 else 0
         
-        # 2. 計算量比 (今日量 / 過去5日均量)
         if len(volumes) >= 6:
             vol_avg_5 = sum(volumes[-6:-1]) / 5
             vol_ratio = round(latest['Trading_Volume'] / vol_avg_5, 1) if vol_avg_5 > 0 else 0
@@ -135,7 +160,7 @@ def fetch_technical_data(stock_id):
             "ma5": ma5,
             "ma20": ma20,
             "vol_ratio": vol_ratio,
-            "trend": "多頭格局" if latest['close'] > ma20 else "空頭/整理"
+            "trend": "多頭" if latest['close'] > ma20 else "空頭"
         }
     except: return None
 
@@ -146,7 +171,7 @@ def fetch_chips(stock_id):
     start = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
     params = {"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": stock_id, "start_date": start, "token": token}
     try:
-        res = requests.get(url, params=params, timeout=5)
+        res = requests.get(url, params=params, timeout=10)
         data = res.json().get('data', [])
         if not data: return {"foreign": 0, "trust": 0}
         
@@ -171,50 +196,47 @@ def callback():
 def handle_message(event):
     u_text = event.message.text.strip()
     
-    # 步驟 1: 取得代號
     stock_id = get_stock_id(u_text)
     if not stock_id:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 找不到股票，請確認名稱。"))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 找不到「{u_text}」"))
         return
 
-    # 步驟 2: 抓取技術面 (最重要，若無資料直接跳出)
+    stock_name = get_stock_name(stock_id, u_text)
+    display_name = f"{stock_id} {stock_name}".strip()
+
     tech = fetch_technical_data(stock_id)
     if not tech:
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無 {stock_id} 股價資料"))
         return
 
-    # 步驟 3: 抓取籌碼面
     chips = fetch_chips(stock_id)
-    f_sheets = int(chips['foreign'] / 1000) # 換算成張數 (FinMind 單位是股)
+    f_sheets = int(chips['foreign'] / 1000)
     t_sheets = int(chips['trust'] / 1000)
 
-    # 步驟 4: 抓取基本面
+    # 抓取營收 (已加入修正)
     revenue_info = fetch_revenue(stock_id)
 
-    # 步驟 5: 🔥 建構資深分析師 Prompt
-    # 這裡是最關鍵的「大腦」，教 AI 如何運用所有數據
     prompt = (
-        f"角色：擁有20年台股經驗的資深操盤手。\n"
-        f"標的：{stock_id}，現價 {tech['close']} 元。\n"
-        f"【技術型態】：目前為{tech['trend']} (MA20月線: {tech['ma20']})，"
-        f"今日量比 {tech['vol_ratio']} 倍 (成交 {int(tech['volume']/1000)} 張)。\n"
-        f"【籌碼動向】：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
+        f"角色：資深操盤手。\n"
+        f"標的：{display_name}，現價 {tech['close']}。\n"
+        f"【技術面】：\n"
+        f"- 趨勢: {tech['trend']} (MA20: {tech['ma20']})\n"
+        f"- 量能: 量比 {tech['vol_ratio']} 倍 (成交 {int(tech['volume']/1000)} 張)\n"
+        f"【籌碼面】：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
         f"【基本面】：{revenue_info}。\n"
-        f"任務：請綜合以上三方面數據，給出犀利的操作建議。\n"
-        f"分析邏輯：\n"
-        f"1. 多頭訊號：股價 > MA20 且 量比 > 1.2 且 法人買超。\n"
-        f"2. 警示訊號：量比過大(>3倍) 且 外資大買 -> 提醒隔日沖風險。\n"
-        f"3. 空頭訊號：股價 < MA20 且 法人賣超。\n"
-        f"4. 若營收大幅衰退，請警告不可長抱。\n"
-        f"輸出要求：150字內，條列式重點，最後給出明確的「防守價位」(停損點)。"
+        f"任務：給出 150 字內的犀利建議。\n"
+        f"判定邏輯 (務必解釋量比)：\n"
+        f"1. 量比 > 2.0：攻擊量/爆量，注意位階。\n"
+        f"2. 量比 < 0.8：窒息量/人氣退潮。\n"
+        f"3. 營收若有數據，請納入判斷；若為ETF則忽略營收。\n"
+        f"4. 提醒隔日沖風險。\n"
+        f"格式：條列式，含「趨勢」、「量價」、「建議」。"
     )
     
-    # 步驟 6: 呼叫 AI 並回覆
-    ai_ans, status = call_gemini_v5(prompt)
+    ai_ans, status = call_gemini_v5_2(prompt)
     
-    # 顯示部分數據讓使用者參考
     reply = (
-        f"📊 **{stock_id} 深度分析**\n"
+        f"📊 **{display_name} 深度分析**\n"
         f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
         f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
         f"🏦 外資: {f_sheets}張 | 投信: {t_sheets}張\n"
