@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v3.6 (一般查詢50字+完整敘述)
-BOT_VERSION = "v3.6 (Balance)"
+# 🟢 [版本號] v3.7 (Token翻倍+強制結尾)
+BOT_VERSION = "v3.7 (Fluent)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -30,7 +30,7 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v3_6(prompt, is_detailed=False):
+def call_gemini_v3_7(prompt, is_detailed=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -38,12 +38,11 @@ def call_gemini_v3_6(prompt, is_detailed=False):
     random.shuffle(keys)
     last_error = "NoKeys"
     
-    # 💡 修正設定：
-    # 策略模式：維持 350 tokens (約 100~150 字)
-    # 一般模式：調高至 250 tokens (確保 50 字能完整講完，不會斷掉)
-    max_tokens = 350 if is_detailed else 250
+    # 🚀 關鍵修正：Token 翻倍，寧可多給也不要切斷
+    # 一般模式：600 (足夠寫 200 字以上)
+    # 策略模式：1000 (足夠寫完整列表)
+    max_tokens = 1000 if is_detailed else 600
     
-    # 維持使用您環境支援的模型 (不含 1.5)
     target_models = [
         "gemini-2.5-flash",       
         "gemini-2.0-flash-lite-001", 
@@ -60,12 +59,13 @@ def call_gemini_v3_6(prompt, is_detailed=False):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.3 # 維持低溫，確保內容精準
+                        "temperature": 0.4 # 稍微提高一點點，讓語句更通順
                     }
                 }
                 
+                # 延長超時，因為生成的內容變長了
                 time.sleep(random.uniform(0.5, 1.0))
-                response = requests.post(url, headers=headers, params=params, json=payload, timeout=12)
+                response = requests.post(url, headers=headers, params=params, json=payload, timeout=15)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -90,7 +90,7 @@ def get_stock_id(u_input):
         return None 
     
     prompt = f"Find the 4-digit stock code for Taiwan stock '{clean_name}'. Answer ONLY the 4 digits."
-    res, status = call_gemini_v3_6(prompt)
+    res, status = call_gemini_v3_7(prompt)
     if res:
         match = re.search(r'\d{4}', res)
         if match:
@@ -157,25 +157,29 @@ def handle_message(event):
     t_sheets = int(chips_data['trust'] / 1000)
 
     if is_strategy_mode:
-        # 策略模式 (維持 100 字極簡列點)
+        # 策略模式
         prompt = (
             f"角色：分析師。\n"
             f"標的：{stock_id}，現價 {price_data['close']}。\n"
             f"籌碼：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
             f"要求：請用「100字內」給出精簡策略。\n"
             f"格式：趨勢判斷 / 進場區間 / 停損價 / 短評。\n"
-            f"直接列出數據，不要廢話，不要分行。"
+            f"嚴格要求：必須完整結束句子，不可中斷。"
         )
-        ai_ans, status = call_gemini_v3_6(prompt, is_detailed=True)
+        ai_ans, status = call_gemini_v3_7(prompt, is_detailed=True)
         reply = f"📈 **{stock_id} 精簡策略**\n現價: {price_data['close']}\n------------------\n{ai_ans}\n------------------\n(系統: {status} | {BOT_VERSION})"
     else:
-        # 🟢 一般模式 (放寬至 50 字，強調完整性)
+        # 🟢 一般模式 (50字完整敘述)
+        # 💡 Prompt 優化：給予明確的寫作框架
         prompt = (
-            f"標的：{stock_id}，價 {price_data['close']}，外資{f_sheets}張，投信{t_sheets}張。"
-            f"請給 50 字左右的籌碼技術短評，重點在法人動向。"
-            f"務必確保語句通順且「完整結尾」，不要講一半被切斷。"
+            f"角色：資深台股分析師。\n"
+            f"分析標的：{stock_id} (收盤 {price_data['close']})。\n"
+            f"籌碼數據：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
+            f"任務：請寫一段約 50 字的完整短評。\n"
+            f"內容重點：結合籌碼動向與股價表現，給出一個明確的結論。\n"
+            f"絕對要求：語句必須通順且有句號結尾，禁止斷在半路。"
         )
-        ai_ans, status = call_gemini_v3_6(prompt, is_detailed=False)
+        ai_ans, status = call_gemini_v3_7(prompt, is_detailed=False)
         reply = f"📊 {stock_id} 收盤: {price_data['close']}\n💰 外資: {f_sheets} 張\n🏦 投信: {t_sheets} 張\n------------------\n🤖 {ai_ans}\n(💡 輸入「建議 {stock_id}」看策略)"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
