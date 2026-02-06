@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v3.7 (Token翻倍+強制結尾)
-BOT_VERSION = "v3.7(Fluent)"
+# 🟢 [版本號] v3.8 (Token大解放+字數嚴控)
+BOT_VERSION = "v3.8 (Final)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -18,7 +18,7 @@ STOCK_CACHE = {
     "廣達": "2382", "緯創": "3231", "技嘉": "2376", "廣明": "6188",
     "鈊象": "3293", "智原": "3035", "創意": "3443", "世芯": "3661",
     "星宇": "2646", "星宇航空": "2646", "群創": "3481", "友達": "2409",
-    "興富發": "2542", "中鋼": "2002"
+    "興富發": "2542", "中鋼": "2002", "威剛": "3260"
 }
 
 line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN'))
@@ -30,7 +30,7 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v3_7(prompt, is_detailed=False):
+def call_gemini_v3_8(prompt, is_detailed=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -38,11 +38,12 @@ def call_gemini_v3_7(prompt, is_detailed=False):
     random.shuffle(keys)
     last_error = "NoKeys"
     
-    # 🚀 關鍵修正：Token 翻倍，寧可多給也不要切斷
-    # 一般模式：600 (足夠寫 200 字以上)
-    # 策略模式：1000 (足夠寫完整列表)
-    max_tokens = 1000 if is_detailed else 600
+    # 🚀 策略改變：
+    # 技術上給予 2000 Token (極大值)，保證絕對不被系統切斷。
+    # 內容長度完全由 Prompt (指令) 來控制。
+    max_tokens = 2000 
     
+    # 鎖定您環境支援的模型
     target_models = [
         "gemini-2.5-flash",       
         "gemini-2.0-flash-lite-001", 
@@ -59,11 +60,10 @@ def call_gemini_v3_7(prompt, is_detailed=False):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.4 # 稍微提高一點點，讓語句更通順
+                        "temperature": 0.4 
                     }
                 }
                 
-                # 延長超時，因為生成的內容變長了
                 time.sleep(random.uniform(0.5, 1.0))
                 response = requests.post(url, headers=headers, params=params, json=payload, timeout=15)
                 
@@ -90,7 +90,7 @@ def get_stock_id(u_input):
         return None 
     
     prompt = f"Find the 4-digit stock code for Taiwan stock '{clean_name}'. Answer ONLY the 4 digits."
-    res, status = call_gemini_v3_7(prompt)
+    res, status = call_gemini_v3_8(prompt)
     if res:
         match = re.search(r'\d{4}', res)
         if match:
@@ -157,29 +157,25 @@ def handle_message(event):
     t_sheets = int(chips_data['trust'] / 1000)
 
     if is_strategy_mode:
-        # 策略模式
+        # 💡 策略模式 Prompt：技術閘門已開到 2000，但這裡要求 AI 自律在 150 字內
         prompt = (
             f"角色：分析師。\n"
             f"標的：{stock_id}，現價 {price_data['close']}。\n"
             f"籌碼：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
-            f"要求：請用「100字內」給出精簡策略。\n"
+            f"要求：請用「150字內」給出精簡策略，確保語句完整結尾。\n"
             f"格式：趨勢判斷 / 進場區間 / 停損價 / 短評。\n"
-            f"嚴格要求：必須完整結束句子，不可中斷。"
         )
-        ai_ans, status = call_gemini_v3_7(prompt, is_detailed=True)
+        ai_ans, status = call_gemini_v3_8(prompt, is_detailed=True)
         reply = f"📈 **{stock_id} 精簡策略**\n現價: {price_data['close']}\n------------------\n{ai_ans}\n------------------\n(系統: {status} | {BOT_VERSION})"
     else:
-        # 🟢 一般模式 (50字完整敘述)
-        # 💡 Prompt 優化：給予明確的寫作框架
+        # 🟢 一般模式 Prompt：技術閘門已開到 2000，但這裡要求 AI 自律在 60 字內
         prompt = (
-            f"角色：資深台股分析師。\n"
-            f"分析標的：{stock_id} (收盤 {price_data['close']})。\n"
-            f"籌碼數據：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
-            f"任務：請寫一段約 50 字的完整短評。\n"
-            f"內容重點：結合籌碼動向與股價表現，給出一個明確的結論。\n"
-            f"絕對要求：語句必須通順且有句號結尾，禁止斷在半路。"
+            f"角色：資深分析師。\n"
+            f"標的：{stock_id}，價 {price_data['close']}，外資{f_sheets}張，投信{t_sheets}張。"
+            f"任務：請給 60 字內的完整短評，結合法人動向與股價。\n"
+            f"重要：必須以句號結束，禁止斷在半路。"
         )
-        ai_ans, status = call_gemini_v3_7(prompt, is_detailed=False)
+        ai_ans, status = call_gemini_v3_8(prompt, is_detailed=False)
         reply = f"📊 {stock_id} 收盤: {price_data['close']}\n💰 外資: {f_sheets} 張\n🏦 投信: {t_sheets} 張\n------------------\n🤖 {ai_ans}\n(💡 輸入「建議 {stock_id}」看策略)"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
