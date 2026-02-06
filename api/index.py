@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v3.3 解鎖長文本 (解決回答中斷)
-BOT_VERSION = "v3.3 (LongText)"
+# 🟢 [版本號] v3.6 (一般查詢50字+完整敘述)
+BOT_VERSION = "v3.6 (Balance)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -24,13 +24,13 @@ STOCK_CACHE = {
 line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET'))
 
-# --- 健康檢查 (防崩潰) ---
+# --- 健康檢查 ---
 @app.route("/")
 def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v3_3(prompt, is_detailed=False):
+def call_gemini_v3_6(prompt, is_detailed=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -38,12 +38,17 @@ def call_gemini_v3_3(prompt, is_detailed=False):
     random.shuffle(keys)
     last_error = "NoKeys"
     
-    # 💡 關鍵修正：大幅增加 Token 上限
-    # 一般模式 250 -> 400
-    # 策略模式 600 -> 800 (確保能講完停損停利)
-    max_tokens = 800 if is_detailed else 400
+    # 💡 修正設定：
+    # 策略模式：維持 350 tokens (約 100~150 字)
+    # 一般模式：調高至 250 tokens (確保 50 字能完整講完，不會斷掉)
+    max_tokens = 350 if is_detailed else 250
     
-    target_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-lite-001"]
+    # 維持使用您環境支援的模型 (不含 1.5)
+    target_models = [
+        "gemini-2.5-flash",       
+        "gemini-2.0-flash-lite-001", 
+        "gemini-flash-latest"     
+    ]
 
     for model in target_models:
         for key in keys:
@@ -55,12 +60,12 @@ def call_gemini_v3_3(prompt, is_detailed=False):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.4 
+                        "temperature": 0.3 # 維持低溫，確保內容精準
                     }
                 }
                 
-                time.sleep(random.uniform(0.5, 1.2))
-                response = requests.post(url, headers=headers, params=params, json=payload, timeout=20) # 延長超時到 20秒
+                time.sleep(random.uniform(0.5, 1.0))
+                response = requests.post(url, headers=headers, params=params, json=payload, timeout=12)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -85,7 +90,7 @@ def get_stock_id(u_input):
         return None 
     
     prompt = f"Find the 4-digit stock code for Taiwan stock '{clean_name}'. Answer ONLY the 4 digits."
-    res, status = call_gemini_v3_3(prompt)
+    res, status = call_gemini_v3_6(prompt)
     if res:
         match = re.search(r'\d{4}', res)
         if match:
@@ -152,27 +157,26 @@ def handle_message(event):
     t_sheets = int(chips_data['trust'] / 1000)
 
     if is_strategy_mode:
-        # 💡 Prompt 優化：要求 AI 用「條列式」且「精簡」回答，避免廢話
+        # 策略模式 (維持 100 字極簡列點)
         prompt = (
-            f"角色：專業操盤手。\n"
+            f"角色：分析師。\n"
             f"標的：{stock_id}，現價 {price_data['close']}。\n"
             f"籌碼：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
-            f"任務：請給出操作策略，嚴格遵守以下格式，不要有前言廢話：\n"
-            f"1.【趨勢】(多/空/盤整)\n"
-            f"2.【區間】(建議進場價)\n"
-            f"3.【停損】(價格)\n"
-            f"4.【停利】(價格)\n"
-            f"5.【短評】(30字內理由)"
+            f"要求：請用「100字內」給出精簡策略。\n"
+            f"格式：趨勢判斷 / 進場區間 / 停損價 / 短評。\n"
+            f"直接列出數據，不要廢話，不要分行。"
         )
-        ai_ans, status = call_gemini_v3_3(prompt, is_detailed=True)
-        reply = f"📈 **{stock_id} 操盤策略**\n現價: {price_data['close']}\n------------------\n{ai_ans}\n------------------\n(系統: {status} | {BOT_VERSION})"
+        ai_ans, status = call_gemini_v3_6(prompt, is_detailed=True)
+        reply = f"📈 **{stock_id} 精簡策略**\n現價: {price_data['close']}\n------------------\n{ai_ans}\n------------------\n(系統: {status} | {BOT_VERSION})"
     else:
+        # 🟢 一般模式 (放寬至 50 字，強調完整性)
         prompt = (
             f"標的：{stock_id}，價 {price_data['close']}，外資{f_sheets}張，投信{t_sheets}張。"
-            f"請給 50 字內籌碼短評，直接講結論，不要重複數據。"
+            f"請給 50 字左右的籌碼技術短評，重點在法人動向。"
+            f"務必確保語句通順且「完整結尾」，不要講一半被切斷。"
         )
-        ai_ans, status = call_gemini_v3_3(prompt, is_detailed=False)
-        reply = f"📊 {stock_id} 收盤: {price_data['close']}\n💰 外資: {f_sheets} 張\n🏦 投信: {t_sheets} 張\n------------------\n🤖 {ai_ans}\n(💡 輸入「建議 {stock_id}」看操作策略)"
+        ai_ans, status = call_gemini_v3_6(prompt, is_detailed=False)
+        reply = f"📊 {stock_id} 收盤: {price_data['close']}\n💰 外資: {f_sheets} 張\n🏦 投信: {t_sheets} 張\n------------------\n🤖 {ai_ans}\n(💡 輸入「建議 {stock_id}」看策略)"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
