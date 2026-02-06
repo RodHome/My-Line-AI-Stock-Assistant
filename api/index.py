@@ -247,4 +247,40 @@ def handle_message(event):
     t_sheets = int(chips['trust'] / 1000)
     revenue_info = fetch_revenue(stock_id)
 
-    # 🔥🔥🔥
+    # 🔥🔥🔥 修正點 2: Prompt 強制擴寫，禁止短回覆 🔥🔥🔥
+    prompt = (
+        f"角色：資深台股分析師。\n"
+        f"標的：{display_name}，現價 {tech['close']}。\n"
+        f"【技術面】：\n"
+        f"- 趨勢: {tech['trend']} (MA20: {tech['ma20']})\n"
+        f"- 量能: 量比 {tech['vol_ratio']} 倍 (成交 {int(tech['volume']/1000)} 張)\n"
+        f"【籌碼面】：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
+        f"【基本面】：{revenue_info}。\n"
+        f"任務：撰寫一份【詳盡的】操盤報告，字數目標 300 字以上。\n"
+        f"警告：如果回答太短或只有幾句話，將視為失敗。請針對每一點深入論述：\n\n"
+        f"1. **量價結構詳解**：(請詳細解釋量比 {tech['vol_ratio']} 的意義，是攻擊量還是出貨量？配合均線位置，判斷目前是主升段、反彈還是盤整？)\n"
+        f"2. **法人籌碼透視**：(外資與投信是同買還是對作？這樣的籌碼對股價後市有何影響？)\n"
+        f"3. **實戰操作策略**：(不要只說觀望或進場。請給出具體情境，例如：『若突破xx元可加碼』、『若跌破xx元需減碼』)\n"
+        f"4. **風險與防守**：(設定具體停損價位，並提醒若出現隔日沖券商如凱基台北時的應對方式)\n\n"
+        f"注意：基本面若無數據請忽略。請用專業術語，但解釋要清晰。"
+    )
+    
+    ai_ans, status = call_gemini_v5_6(prompt)
+    
+    reply = (
+        f"📊 **{display_name} 深度分析**\n"
+        f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
+        f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
+        f"🏦 外資: {f_sheets}張 | 投信: {t_sheets}張\n"
+        f"📝 {revenue_info}\n"
+        f"------------------\n"
+        f"{ai_ans}\n"
+        f"------------------\n"
+        f"(AI分析師: {status})"
+    )
+
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
