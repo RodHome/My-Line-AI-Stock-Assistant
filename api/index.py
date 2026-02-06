@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v3.1 加入買賣策略分析
-BOT_VERSION = "v3.1 (Advisor)"
+# 🟢 [版本號] v3.2 加入健康檢查 (防崩潰)
+BOT_VERSION = "v3.2 (Stable)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -24,18 +24,20 @@ STOCK_CACHE = {
 line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET'))
 
+# --- 🆕 健康檢查入口 (讓 Zeabur 知道我們活著) ---
+@app.route("/")
+def health_check():
+    return "OK", 200
+
 # --- AI 核心 ---
-def call_gemini_v3_1(prompt, is_detailed=False):
+def call_gemini_v3_2(prompt, is_detailed=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
     
     random.shuffle(keys)
     last_error = "NoKeys"
-    
-    # 若是詳細分析，增加長度限制
     max_tokens = 600 if is_detailed else 250
-    
     target_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-lite-001"]
 
     for model in target_models:
@@ -44,17 +46,13 @@ def call_gemini_v3_1(prompt, is_detailed=False):
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 headers = {'Content-Type': 'application/json'}
                 params = {'key': key}
-                
                 payload = {
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "maxOutputTokens": max_tokens, 
-                        "temperature": 0.4 # 稍微提高一點創造力來寫建議
-                    }
+                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.4}
                 }
                 
                 time.sleep(random.uniform(0.5, 1.2))
-                response = requests.post(url, headers=headers, params=params, json=payload, timeout=15) # 延長超時
+                response = requests.post(url, headers=headers, params=params, json=payload, timeout=15)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -67,26 +65,19 @@ def call_gemini_v3_1(prompt, is_detailed=False):
                 continue
     return None, f"Fail({last_error})"
 
-# --- 輔助：清理使用者輸入 ---
+# --- 輔助函式 ---
 def clean_input(text):
-    # 移除 "建議", "分析", "買進" 等關鍵字，只留下股票名稱
-    # 例如: "建議台積電" -> "台積電"
-    cleaned = re.sub(r"(建議|分析|買進|策略|怎麼看|分析一下)\s*", "", text)
-    return cleaned.strip()
+    return re.sub(r"(建議|分析|買進|策略|怎麼看|分析一下)\s*", "", text).strip()
 
-# --- 股票辨識 ---
 def get_stock_id(u_input):
-    # 先清理輸入，避免 AI 被關鍵字混淆
     clean_name = clean_input(u_input)
-    
     if clean_name in STOCK_CACHE: return STOCK_CACHE[clean_name]
     if clean_name.isdigit():
         if len(clean_name) == 4: return clean_name
         return None 
     
     prompt = f"Find the 4-digit stock code for Taiwan stock '{clean_name}'. Answer ONLY the 4 digits."
-    res, status = call_gemini_v3_1(prompt)
-    
+    res, status = call_gemini_v3_2(prompt)
     if res:
         match = re.search(r'\d{4}', res)
         if match:
@@ -136,9 +127,6 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     u_text = event.message.text.strip()
-    
-    # 判斷是否為「求建議」模式
-    # 如果輸入包含這些字，開啟 Detailed Mode
     is_strategy_mode = any(k in u_text for k in ["建議", "分析", "買進", "策略"])
     
     stock_id = get_stock_id(u_text)
@@ -155,9 +143,7 @@ def handle_message(event):
     f_sheets = int(chips_data['foreign'] / 1000)
     t_sheets = int(chips_data['trust'] / 1000)
 
-    # --- 關鍵分歧點：決定 AI 提示詞 ---
     if is_strategy_mode:
-        # 🔥 深度策略模式
         prompt = (
             f"角色：專業操盤手。\n"
             f"分析標的：台股 {stock_id}，現價 {price_data['close']}。\n"
@@ -169,12 +155,20 @@ def handle_message(event):
             f"4. 停利點設定\n"
             f"請用列點方式回答，語氣專業果斷，不要免責聲明廢話。"
         )
-        # 呼叫 AI 時開啟 detailed=True
-        ai_ans, status = call_gemini_v3_1(prompt, is_detailed=True)
-        
-        reply = (
-            f"📈 **{stock_id} 操盤策略**\n"
-            f"現價: {price_data['close']}\n"
-            f"------------------\n"
-            f"{ai_ans}\n"
-            f"------------------
+        ai_ans, status = call_gemini_v3_2(prompt, is_detailed=True)
+        reply = f"📈 **{stock_id} 操盤策略**\n現價: {price_data['close']}\n------------------\n{ai_ans}\n------------------\n(系統: {status} | {BOT_VERSION})"
+    else:
+        prompt = (
+            f"標的：{stock_id}，價 {price_data['close']}，外資{f_sheets}張，投信{t_sheets}張。"
+            f"請給 40 字內籌碼技術短評，重點在法人動向。"
+        )
+        ai_ans, status = call_gemini_v3_2(prompt, is_detailed=False)
+        reply = f"📊 {stock_id} 收盤: {price_data['close']}\n💰 外資: {f_sheets} 張\n🏦 投信: {t_sheets} 張\n------------------\n🤖 {ai_ans}\n(💡 輸入「建議 {stock_id}」看操作策略)"
+
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    # 💡 這裡有個隱藏重點：雖然我們用 app.run，但有了根目錄 "/"，
+    # Zeabur 的健康檢查就不會因為 404 而報錯崩潰了。
+    app.run(host='0.0.0.0', port=port)
