@@ -9,28 +9,31 @@ user_sessions = {}
 
 def call_gemini(prompt):
     from google import genai
-    import time
+    import time, random
     
-    # 🎯 讀取 6 支金鑰
+    # 🎯 讀取 6 支獨立金鑰
     api_keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not api_keys: api_keys = [os.environ.get('GEMINI_API_KEY')]
     
+    # 🎯 隨機打亂測試順序
     random.shuffle(api_keys)
-    # 🎯 優先使用你測試通過的 2.0 Flash
-    target_model = "models/gemini-2.0-flash" 
+    target_model = "models/gemini-2.0-flash" # 優先使用你測通的 Flash
     
     for idx, key in enumerate(api_keys, 1):
         try:
             client = genai.Client(api_key=key)
+            # 🎯 在每次嘗試前加入微小隨機延遲，錯開 Vercel 的併發請求
+            time.sleep(random.uniform(0.5, 1.5)) 
+            
             res = client.models.generate_content(model=target_model, contents=prompt)
-            if res.text: return res.text, f"Key_{idx}_Flash"
+            if res.text: 
+                return res.text, f"Key_{idx}_OK"
         except Exception as e:
             if "429" in str(e):
-                time.sleep(0.5) # 🎯 遇到滿載，先睡一下再試下一支
-                continue
+                continue # 這一支被限流，換下一支
             return f"Error: {str(e)[:20]}", "Err"
             
-    return "⚠️ 目前 6 支金鑰皆受到 Google 流量限制 (429)，請於 30 秒後重新輸入代碼查詢。", "Gemini_Limit"
+    return "🚀 Vercel 雲端 IP 目前受到 Google 集體流量管制 (429)。請稍等 1 分鐘，或嘗試換個時段查詢。", "Gemini_Limit"
 
 def fetch_finmind_data(stock_id):
     """根據截圖規範使用 data_id"""
