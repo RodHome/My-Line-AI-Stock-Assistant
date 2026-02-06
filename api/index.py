@@ -8,7 +8,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 app = Flask(__name__)
 
 # 🟢 [版本號] v3.7 (Token翻倍+強制結尾)
-BOT_VERSION = "v3.7 (Fluent)"
+BOT_VERSION = "v3.7(Fluent)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
