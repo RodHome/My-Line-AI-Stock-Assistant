@@ -7,46 +7,42 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 app = Flask(__name__)
 user_sessions = {}
 
-def call_gemini(prompt, use_pro=False):
+def call_gemini(prompt):
     from google import genai
+    # 🎯 核心：讀取 6 支金鑰
     api_keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not api_keys: api_keys = [os.environ.get('GEMINI_API_KEY')]
-    random.shuffle(api_keys)
     
-    # 既然測試 200 OK，這裡我們確保優先使用連線成功的模型
-    target_model = "models/gemini-2.0-flash" # 優先用 Flash 確保速度與連通
+    random.shuffle(api_keys)
+    # 🎯 策略：直接使用你測試通過的 2.0 Flash，避開 Pro 的嚴格限制
+    target_model = "models/gemini-2.0-flash" 
+    
     for key in api_keys:
         try:
             client = genai.Client(api_key=key)
             res = client.models.generate_content(model=target_model, contents=prompt)
-            return res.text, "Gemini_OK"
-        except: continue
-    return None, "Gemini_Limit"
+            if res.text: return res.text, "Gemini_OK"
+        except Exception as e:
+            if "429" in str(e): continue
+            return f"Error: {str(e)[:20]}", "Err"
+            
+    return "⚠️ 所有金鑰暫時滿載 (429)，請 1 分鐘後再試。", "Gemini_Limit"
 
 def fetch_finmind_data(stock_id):
-    """嚴格遵循官方 data_id 規範"""
+    """根據截圖規範使用 data_id"""
     token = os.environ.get('FINMIND_TOKEN', '')
     start_date = (datetime.now() - timedelta(days=50)).strftime('%Y-%m-%d')
     url = "https://api.finmindtrade.com/api/v4/data"
-    
-    # 🎯 關鍵修正：確保 data_id 是純數字字串
-    params = {
-        "dataset": "TaiwanStockPrice",
-        "data_id": stock_id,
-        "start_date": start_date,
-        "token": token
-    }
+    params = {"dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start_date, "token": token}
     
     try:
-        resp = requests.get(url, params=params, timeout=10)
-        json_data = resp.json()
-        if json_data.get('status') != 200 or not json_data.get('data'):
-            return f"ERR_FINMIND_{json_data.get('status')}"
-        
-        hist = [d['close'] for d in json_data['data']]
-        return {"close": hist[-1], "ma20": round(sum(hist[-20:])/20, 2) if len(hist)>=20 else 0}
-    except Exception as e:
-        return f"ERR_CONN_{str(e)[:10]}"
+        resp = requests.get(url, params=params, timeout=10).json()
+        if resp.get('status') == 200 and resp.get('data'):
+            data_list = resp['data']
+            hist = [d['close'] for d in data_list]
+            return {"now": hist[-1], "ma20": round(sum(hist[-20:])/20, 2), "vol": data_list[-1]['Trading_Volume']}
+        return None
+    except: return None
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -59,20 +55,19 @@ def callback():
     def handle_message(event):
         u_text = event.message.text.strip()
         
-        # 1. 識別是否為股票代碼
         if u_text.isdigit() and len(u_text) >= 4:
+            # 1. 抓取資料 (此部分已確認正確)
             data = fetch_finmind_data(u_text)
-            
-            # 2. 除錯回報邏輯
-            if isinstance(data, str):
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 資料抓取失敗: {data}\n(請檢查 Vercel 的 FINMIND_TOKEN 是否正確)"))
+            if not data:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 查無代碼或資料擷取失敗"))
                 return
 
-            # 3. 呼叫測試通過的 Gemini
-            prompt = f"代碼{u_text}，現價{data['close']}，MA20為{data['ma20']}。請給出極簡分析與操作建議。"
+            # 2. 構建分析請求
+            prompt = f"分析台股 {u_text}：現價{data['now']}，MA20為{data['ma20']}，成交量{data['vol']}。請給出極簡短的操作建議。"
             ans, status = call_gemini(prompt)
             
-            final_msg = f"**股票分析 ({u_text})**\n{ans}\n\n🏷️ 系統診斷: {status}"
+            # 3. 輸出回覆
+            final_msg = f"**股票分析 ({u_text})**\n{ans}\n\n🏷️ 診斷: {status}"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=final_msg))
 
     try: handler.handle(body, signature)
