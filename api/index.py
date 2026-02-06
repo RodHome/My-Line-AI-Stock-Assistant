@@ -5,50 +5,40 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
-user_sessions = {}
 
-def call_gemini(prompt, model="flash"):
+def call_gemini_stable(prompt):
+    """使用 6 支金鑰與 Flash 模型確保連通"""
     from google import genai
     api_keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not api_keys: api_keys = [os.environ.get('GEMINI_API_KEY')]
     
     random.shuffle(api_keys)
-    # 🎯 輕量快評用 2.0-Flash (限額高)，深度分析才用 2.5-Pro (限額低)
-    target = "models/gemini-2.0-flash" if model == "flash" else "models/gemini-2.5-pro"
-    
-    for idx, key in enumerate(api_keys, 1):
+    for key in api_keys:
         try:
             client = genai.Client(api_key=key)
-            # 加入隨機擾動防止 IP 併發封鎖
-            time.sleep(random.uniform(0.3, 0.8)) 
-            res = client.models.generate_content(model=target, contents=prompt)
-            if res.text: return res.text, f"K{idx}_{'F' if 'flash' in target else 'P'}"
+            # 隨機微小延遲防止雲端 IP 併發封鎖
+            time.sleep(random.uniform(0.1, 0.3))
+            res = client.models.generate_content(model="models/gemini-2.0-flash", contents=prompt)
+            if res.text: return res.text, "Flash_OK"
         except: continue
-    return "⚠️ 系統目前滿載，請於 30 秒後重試。", "Limit"
+    return "🚀 伺服器忙碌中，請 30 秒後重新輸入代號。", "Limit"
 
-def get_stock_id(u_input):
-    """識別代碼或名稱，轉換為 4 位代碼"""
+def get_stock_id_stable(u_input):
+    """將名稱或混雜文字精準轉為 4 位代碼"""
     if u_input.isdigit() and len(u_input) >= 4: return u_input
-    # 極簡 Prompt 節省 Token
-    res, _ = call_gemini(f"Identify Taiwan stock ID for '{u_input}'. Reply only the 4-digit ID or 'None'.", model="flash")
+    prompt = f"將『{u_input}』轉為台股代碼。只回傳 4 位數字，無法辨識回傳 None。"
+    res, _ = call_gemini_stable(prompt)
     return res.strip() if res and res.strip().isdigit() else None
 
-def fetch_finmind(stock_id, is_full=False):
-    """根據需求強度抓取資料"""
+def fetch_price_stable(stock_id):
+    """僅抓取當日收盤資料，保證不超載"""
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
-    # 深度模式抓 45 天，快評模式只抓 3 天
-    days = 45 if is_full else 3
-    start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-    
+    start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+    params = {"dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start_date, "token": token}
     try:
-        p_res = requests.get(url, params={"dataset":"TaiwanStockPrice","data_id":stock_id,"start_date":start,"token":token}, timeout=8).json().get('data', [])
-        if not p_res: return None
-        if not is_full: return {"close": p_res[-1]['close'], "id": stock_id}
-        
-        # 僅深度模式才抓籌碼資料
-        c_res = requests.get(url, params={"dataset":"TaiwanStockInstitutionalInvestorsBuySell","data_id":stock_id,"start_date":start,"token":token}, timeout=8).json().get('data', [])
-        return {"history": p_res[-30:], "chips": c_res[-10:], "id": stock_id, "close": p_res[-1]['close']}
+        data = requests.get(url, params=params, timeout=8).json().get('data', [])
+        return data[-1] if data else None
     except: return None
 
 @app.route("/callback", methods=['POST'])
@@ -61,29 +51,24 @@ def callback():
     @handler.add(MessageEvent, message=TextMessage)
     def handle_message(event):
         u_text = event.message.text.strip()
-        
-        # 1. 識別代碼
-        stock_id = get_stock_id(u_text)
-        if not stock_id: return
-
-        # 2. 判斷模式 (是否有「分析」二字)
-        is_deep = any(k in u_text for k in ["分析", "詳細", "籌碼", "推薦"])
-        data = fetch_finmind(stock_id, is_full=is_deep)
-        
-        if not data:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 無法取得數據，請檢查代碼或稍後再試。"))
+        # 1. 智慧轉代碼
+        stock_id = get_stock_id_stable(u_text)
+        if not stock_id:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 無法辨識股票，請輸入名稱或代號。"))
             return
 
-        # 3. 分層 Prompt 分析
-        if is_deep:
-            prompt = f"數據：{data}。任務：深度診斷籌碼與技術面。格式：標題 **名稱 (代號)**，直接給策略，無廢話。"
-            ans, tag = call_gemini(prompt, model="pro")
-        else:
-            # 極簡報價模式，消耗 Token 極低
-            prompt = f"股票 {stock_id} 現價 {data['close']}。給予一句話極簡快評。"
-            ans, tag = call_gemini(prompt, model="flash")
+        # 2. 獲取報價
+        price_data = fetch_price_stable(stock_id)
+        if not price_data:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 查無代碼 {stock_id} 資料。"))
+            return
 
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{ans}\n\n🏷️ 診斷: {tag}"))
+        # 3. 極簡 AI 分析
+        prompt = f"股票 {stock_id} 現價 {price_data['close']}。請給予一句話極簡分析。"
+        ans, status = call_gemini_stable(prompt)
+        
+        reply = f"📊 **報價分析 ({stock_id})**\n現價: {price_data['close']}\n\n💡 快評:\n{ans}\n\n🏷️ 狀態: {status}"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
     try: handler.handle(body, signature)
     except: abort(400)
