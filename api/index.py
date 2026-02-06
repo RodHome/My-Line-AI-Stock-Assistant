@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v5.6 (Debug優先權修正 + 強制長文)
-BOT_VERSION = "v5.6 (Final-Fix)"
+# 🟢 [版本號] v5.7 (No-Fluff + Stable Timeout)
+BOT_VERSION = "v5.7 (Stable)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -19,7 +19,7 @@ STOCK_CACHE = {
     "興富發": "2542", "勤美": "1532",
     # 航運
     "長榮": "2603", "陽明": "2609", "萬海": "2615", "長榮航": "2618", "華航": "2610",
-    # 金融 (凱基金/開發金 互通)
+    # 金融
     "富邦金": "2881", "國泰金": "2882", "凱基金": "2883", "開發金": "2883",
     "玉山金": "2884", "元大金": "2885", "兆豐金": "2886", "台新金": "2887",
     "新光金": "2888", "永豐金": "2890", "中信金": "2891", "第一金": "2892",
@@ -39,7 +39,7 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v5_6(prompt, is_search=False):
+def call_gemini_v5_7(prompt, is_search=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -47,10 +47,9 @@ def call_gemini_v5_6(prompt, is_search=False):
     random.shuffle(keys)
     last_error = "NoKeys"
     
-    # 🔥 強制給予 2000 token，確保不切斷
+    # 給予足夠 Token
     max_tokens = 150 if is_search else 2000
     
-    # 針對長文，稍微調高 temperature 增加豐富度
     target_models = ["gemini-2.5-flash", "gemini-2.0-flash-lite-001", "gemini-flash-latest"]
 
     for model in target_models:
@@ -63,12 +62,14 @@ def call_gemini_v5_6(prompt, is_search=False):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.5 
+                        "temperature": 0.4 
                     }
                 }
                 
                 time.sleep(random.uniform(0.3, 0.7))
-                response = requests.post(url, headers=headers, params=params, json=payload, timeout=15)
+                
+                # 🔥關鍵修正：將 AI 思考時間延長到 30 秒，防止長文被切斷
+                response = requests.post(url, headers=headers, params=params, json=payload, timeout=30)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -77,7 +78,7 @@ def call_gemini_v5_6(prompt, is_search=False):
                 else:
                     last_error = f"{response.status_code}"
             except:
-                last_error = "Err"
+                last_error = "Timeout/Err"
                 continue
     return None, f"Fail({last_error})"
 
@@ -91,7 +92,7 @@ def get_stock_id(u_input):
     if clean_name.isdigit() and len(clean_name) >= 4: return clean_name
     
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{clean_name}'. Reply ONLY with the 4-digit number."
-    res, status = call_gemini_v5_6(prompt, is_search=True)
+    res, status = call_gemini_v5_7(prompt, is_search=True)
     if res and (match := re.search(r'\d{4}', res)):
         code = match.group(0)
         STOCK_CACHE[clean_name] = code
@@ -104,7 +105,7 @@ def get_stock_name(stock_id, user_input_name=None):
     if user_input_name and not user_input_name.isdigit(): return user_input_name
     return ""
 
-# --- 營收抓取 (含 Debug 測試) ---
+# --- 營收抓取 (重試機制 + 延長時間) ---
 def fetch_revenue(stock_id):
     if stock_id.startswith("00"): return "ETF無營收數據"
 
@@ -112,21 +113,27 @@ def fetch_revenue(stock_id):
     url = "https://api.finmindtrade.com/api/v4/data"
     start = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
     params = { "dataset": "TaiwanStockMonthRevenue", "data_id": stock_id, "start_date": start, "token": token }
-    
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        if res.status_code == 429: return "API限速(請檢查Token)"
-        if res.status_code != 200: return f"API錯誤({res.status_code})"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
+    # 🔥 重試機制：最多試 2 次
+    for attempt in range(2):
+        try:
+            # 第一試 15秒，第二試 20秒
+            timeout_sec = 15 if attempt == 0 else 20
+            res = requests.get(url, params=params, headers=headers, timeout=timeout_sec)
             
-        data = res.json().get('data', [])
-        if data:
-            latest = data[-1]
-            return f"{latest['revenue_month']}月營收年增 {latest['revenue_year_growth_rate']}%"
-        return "營收尚未更新"
-    except Exception as e:
-        return "營收讀取逾時"
+            if res.status_code == 429: return "API限速"
+            if res.status_code == 200:
+                data = res.json().get('data', [])
+                if data:
+                    latest = data[-1]
+                    return f"{latest['revenue_month']}月營收年增 {latest['revenue_year_growth_rate']}%"
+                return "營收尚未更新"
+        except:
+            time.sleep(1) # 休息一下再試
+            continue
+            
+    return "營收讀取逾時"
 
 # --- 技術面 ---
 def fetch_technical_data(stock_id):
@@ -136,7 +143,7 @@ def fetch_technical_data(stock_id):
     params = { "dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start, "token": token }
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, params=params, headers=headers, timeout=10)
+        res = requests.get(url, params=params, headers=headers, timeout=15)
         data = res.json().get('data', [])
         if not data: return None
         
@@ -171,7 +178,7 @@ def fetch_chips(stock_id):
     params = {"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": stock_id, "start_date": start, "token": token}
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, params=params, headers=headers, timeout=10)
+        res = requests.get(url, params=params, headers=headers, timeout=15)
         data = res.json().get('data', [])
         if not data: return {"foreign": 0, "trust": 0}
         
@@ -196,39 +203,34 @@ def callback():
 def handle_message(event):
     u_text = event.message.text.strip()
 
-    # 🔥🔥🔥 修正點 1: Debug 指令移到最上面，保證執行 🔥🔥🔥
     if u_text.lower() == "debug":
         token = os.environ.get('FINMIND_TOKEN', '')
-        
-        # 測試 FinMind 連線 (使用台積電測試)
+        # 測試 Revenue (dataset 改為 MonthRevenue 來真實測試)
         test_msg = "連線測試中..."
         try:
             url = "https://api.finmindtrade.com/api/v4/data"
-            params = { "dataset": "TaiwanStockPrice", "data_id": "2330", "start_date": "2024-01-01", "token": token }
+            params = { "dataset": "TaiwanStockMonthRevenue", "data_id": "2330", "start_date": "2024-01-01", "token": token }
             headers = {'User-Agent': 'Mozilla/5.0'}
-            res = requests.get(url, params=params, headers=headers, timeout=5)
+            res = requests.get(url, params=params, headers=headers, timeout=10)
             if res.status_code == 200:
-                test_msg = "✅ FinMind 連線成功 (Token有效)"
+                test_msg = "✅ FinMind 營收數據連線成功"
             else:
-                test_msg = f"❌ 連線失敗: 代碼 {res.status_code} (請檢查Token)"
+                test_msg = f"❌ 連線失敗: {res.status_code}"
         except Exception as e:
             test_msg = f"❌ 連線異常: {str(e)[:10]}"
 
-        # 測試 AI
-        ai_res, ai_status = call_gemini_v5_6("Hi", is_search=True)
+        ai_res, ai_status = call_gemini_v5_7("Hi", is_search=True)
         
         reply = (
-            f"🛠️ **v5.6 系統診斷**\n"
-            f"Token設定: {'✅ 有設定' if token else '❌ 未設定'}\n"
+            f"🛠️ **v5.7 系統診斷**\n"
+            f"Token: {'✅ 已填入' if token else '❌ 未填入'}\n"
             f"FinMind: {test_msg}\n"
             f"AI連線: {ai_status}\n"
-            f"------------------\n"
-            f"💡 如果 FinMind 失敗，請確認 Zeabur 變數 'FINMIND_TOKEN' 是否填入正確。"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # --- 正常股票流程 ---
+    # --- 正常流程 ---
     stock_id = get_stock_id(u_text)
     if not stock_id:
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 找不到「{u_text}」"))
@@ -247,25 +249,23 @@ def handle_message(event):
     t_sheets = int(chips['trust'] / 1000)
     revenue_info = fetch_revenue(stock_id)
 
-    # 🔥🔥🔥 修正點 2: Prompt 強制擴寫，禁止短回覆 🔥🔥🔥
+    # 🔥🔥🔥 終極 Prompt：去廢話、結構化、保證長度 🔥🔥🔥
     prompt = (
-        f"角色：資深台股分析師。\n"
+        f"角色：分析師。\n"
         f"標的：{display_name}，現價 {tech['close']}。\n"
-        f"【技術面】：\n"
-        f"- 趨勢: {tech['trend']} (MA20: {tech['ma20']})\n"
-        f"- 量能: 量比 {tech['vol_ratio']} 倍 (成交 {int(tech['volume']/1000)} 張)\n"
-        f"【籌碼面】：外資 {f_sheets} 張，投信 {t_sheets} 張。\n"
-        f"【基本面】：{revenue_info}。\n"
-        f"任務：撰寫一份【詳盡的】操盤報告，字數目標 300 字以上。\n"
-        f"警告：如果回答太短或只有幾句話，將視為失敗。請針對每一點深入論述：\n\n"
-        f"1. **量價結構詳解**：(請詳細解釋量比 {tech['vol_ratio']} 的意義，是攻擊量還是出貨量？配合均線位置，判斷目前是主升段、反彈還是盤整？)\n"
-        f"2. **法人籌碼透視**：(外資與投信是同買還是對作？這樣的籌碼對股價後市有何影響？)\n"
-        f"3. **實戰操作策略**：(不要只說觀望或進場。請給出具體情境，例如：『若突破xx元可加碼』、『若跌破xx元需減碼』)\n"
-        f"4. **風險與防守**：(設定具體停損價位，並提醒若出現隔日沖券商如凱基台北時的應對方式)\n\n"
-        f"注意：基本面若無數據請忽略。請用專業術語，但解釋要清晰。"
+        f"數據：MA20={tech['ma20']}，量比={tech['vol_ratio']}倍，外資={f_sheets}張，投信={t_sheets}張，營收={revenue_info}。\n\n"
+        f"指令：\n"
+        f"1. **禁止開場白**：不要說「大家好」、「我是分析師」，直接開始分析。\n"
+        f"2. **結構化輸出**：請依序回答下列四點，每點至少 50-80 字，總字數需達 300 字。\n"
+        f"3. **確保完整**：絕對不要在句子中間斷開。\n\n"
+        f"【分析內容】：\n"
+        f"1. **量價與趨勢**：(判斷多空，解釋量能與均線關係)\n"
+        f"2. **籌碼解讀**：(分析法人意圖)\n"
+        f"3. **操作建議**：(給出明確進場/觀望策略)\n"
+        f"4. **防守與風險**：(停損價位與隔日沖提醒)"
     )
     
-    ai_ans, status = call_gemini_v5_6(prompt)
+    ai_ans, status = call_gemini_v5_7(prompt)
     
     reply = (
         f"📊 **{display_name} 深度分析**\n"
@@ -282,5 +282,4 @@ def handle_message(event):
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run()
