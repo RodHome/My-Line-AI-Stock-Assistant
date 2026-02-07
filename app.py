@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v6.1 (Port-Fix: 修正連線埠)
-BOT_VERSION = "v6.1 (Port-Fix)"
+# 🟢 [版本號] v6.2 (Hybrid: 數據分析 + 自由聊天)
+BOT_VERSION = "v6.2 (Hybrid)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -56,7 +56,7 @@ def call_gemini_v6(prompt, is_search=False):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.3 
+                        "temperature": 0.4 # 稍微調高溫度，讓聊天更有創意
                     }
                 }
                 
@@ -82,6 +82,7 @@ def get_stock_id(u_input):
     if clean_name in STOCK_CACHE: return STOCK_CACHE[clean_name]
     if clean_name.isdigit() and len(clean_name) >= 4: return clean_name
     
+    # 限制 AI 找代碼的時間
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{clean_name}'. Reply ONLY with the 4-digit number."
     res, status = call_gemini_v6(prompt, is_search=True)
     if res and (match := re.search(r'\d{4}', res)):
@@ -186,6 +187,7 @@ def callback():
 def handle_message(event):
     u_text = event.message.text.strip()
 
+    # 1. 先處理 Debug 指令
     if u_text.lower() == "debug":
         token = os.environ.get('FINMIND_TOKEN', '')
         test_msg = "測試中..."
@@ -197,59 +199,79 @@ def handle_message(event):
             if res.status_code == 200: test_msg = "✅ 連線成功"
             else: test_msg = f"❌ 失敗({res.status_code})"
         except: test_msg = f"❌ 異常 (Timeout)"
-        reply = f"🛠️ **v6.1 診斷**\nToken: {'✅ 有' if token else '❌ 無'}\nEPS連線: {test_msg}"
+        reply = f"🛠️ **v6.2 診斷**\nToken: {'✅ 有' if token else '❌ 無'}\nEPS連線: {test_msg}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
+    # 2. 嘗試當作「股票」來分析
     stock_id = get_stock_id(u_text)
-    if not stock_id:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 找不到「{u_text}」"))
-        return
 
-    stock_name = get_stock_name(stock_id, u_text)
-    display_name = f"{stock_id} {stock_name}".strip()
+    # 🔥🔥 關鍵分歧點：如果是股票，走分析流程；如果不是，走聊天流程 🔥🔥
+    if stock_id:
+        # A. 嚴肅分析師模式 (有數據)
+        stock_name = get_stock_name(stock_id, u_text)
+        display_name = f"{stock_id} {stock_name}".strip()
 
-    tech = fetch_technical_data(stock_id)
-    if not tech:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無 {stock_id} 資料"))
-        return
+        tech = fetch_technical_data(stock_id)
+        if not tech:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無 {stock_id} 資料"))
+            return
 
-    chips = fetch_chips(stock_id)
-    f_sheets = int(chips['foreign'] / 1000)
-    t_sheets = int(chips['trust'] / 1000)
-    eps_info = fetch_eps(stock_id)
+        chips = fetch_chips(stock_id)
+        f_sheets = int(chips['foreign'] / 1000)
+        t_sheets = int(chips['trust'] / 1000)
+        eps_info = fetch_eps(stock_id)
 
-    prompt = (
-        f"角色：台股分析師。標的：{display_name}。\n"
-        f"現價{tech['close']}，MA20={tech['ma20']}，量比{tech['vol_ratio']}倍。\n"
-        f"外資{f_sheets}張，投信{t_sheets}張。獲利：{eps_info}。\n\n"
-        f"【指令】：\n"
-        f"1. **禁止打招呼**，直接列點分析。\n"
-        f"2. **利用 {eps_info} 計算本益比位階(昂貴/便宜)**。\n"
-        f"3. 總字數 200 字以內，不要寫長篇大論。\n\n"
-        f"【輸出格式】：\n"
-        f"1. **趨勢與量價**：(簡短判斷)\n"
-        f"2. **估值與籌碼**：(本益比分析)\n"
-        f"3. **操作建議**：(進場/停損點)"
-    )
+        prompt = (
+            f"角色：台股分析師。標的：{display_name}。\n"
+            f"現價{tech['close']}，MA20={tech['ma20']}，量比{tech['vol_ratio']}倍。\n"
+            f"外資{f_sheets}張，投信{t_sheets}張。獲利：{eps_info}。\n\n"
+            f"【指令】：\n"
+            f"1. 禁止打招呼。\n"
+            f"2. 利用 {eps_info} 計算本益比位階(昂貴/便宜)。\n"
+            f"3. 200字重點分析。\n"
+            f"【格式】：\n"
+            f"1. **趨勢**：(簡短判斷)\n"
+            f"2. **估值**：(本益比分析)\n"
+            f"3. **建議**：(進場/停損)"
+        )
+        
+        ai_ans, status = call_gemini_v6(prompt)
+        
+        reply = (
+            f"📊 **{display_name} 極速分析**\n"
+            f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
+            f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
+            f"🏦 近一日籌碼:\n"
+            f"外資: {f_sheets}張 | 投信: {t_sheets}張\n" 
+            f"💎 {eps_info}\n"
+            f"------------------\n"
+            f"{ai_ans}\n"
+            f"------------------\n"
+            f"(系統: {status} | {BOT_VERSION})"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
     
-    ai_ans, status = call_gemini_v6(prompt)
-    
-    reply = (
-        f"📊 **{display_name} 極速分析**\n"
-        f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
-        f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
-        f"🏦 近一日籌碼:\n"
-        f"外資: {f_sheets}張 | 投信: {t_sheets}張\n" 
-        f"💎 {eps_info}\n"
-        f"------------------\n"
-        f"{ai_ans}\n"
-        f"------------------\n"
-        f"(系統: {status} | {BOT_VERSION})"
-    )
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+    else:
+        # B. 自由聊天模式 (無數據，純AI)
+        # 這裡不給數據限制，讓 AI 自由發揮
+        prompt = (
+            f"你是一位幽默且專業的投資顧問。使用者說：「{u_text}」。\n"
+            f"請以輕鬆的口吻回應。如果使用者要求推薦股票，你可以根據你的知識庫(雖然不是即時的)推薦幾檔概念股，"
+            f"但必須加上免責聲明，提醒使用者自行查看即時數據。"
+            f"請在 150 字以內回答。"
+        )
+        ai_ans, status = call_gemini_v6(prompt)
+        
+        reply = (
+            f"🤖 **AI 投資顧問**\n"
+            f"------------------\n"
+            f"{ai_ans}\n"
+            f"------------------\n"
+            f"(聊天模式 | {BOT_VERSION})"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
 if __name__ == "__main__":
-    # 🔥 關鍵修正：強制對接 Zeabur 的 8080 Port
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
