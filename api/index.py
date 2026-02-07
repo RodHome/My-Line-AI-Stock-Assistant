@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v5.9 (Value-Investing: EPS+PE)
-BOT_VERSION = "v5.9 (EPS-Valuation)"
+# 🟢 [版本號] v6.0 (Velocity: 極速+EPS+防斷線)
+BOT_VERSION = "v6.0 (Velocity)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -39,14 +39,15 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v5_9(prompt, is_search=False):
+def call_gemini_v6(prompt, is_search=False):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
     
     random.shuffle(keys)
     last_error = "NoKeys"
-    max_tokens = 150 if is_search else 1000 
+    # 降低 token 數量，強迫 AI 講重點，提高速度
+    max_tokens = 100 if is_search else 800 
     
     target_models = ["gemini-2.5-flash", "gemini-2.0-flash-lite-001", "gemini-flash-latest"]
 
@@ -60,11 +61,11 @@ def call_gemini_v5_9(prompt, is_search=False):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.3 
+                        "temperature": 0.3 # 低溫加快收斂
                     }
                 }
                 
-                # 限制 20 秒，避免 LINE Timeout
+                # 🔥 限制 AI 只能思考 20 秒，保留 10 秒給網路傳輸
                 response = requests.post(url, headers=headers, params=params, json=payload, timeout=20)
                 
                 if response.status_code == 200:
@@ -87,8 +88,9 @@ def get_stock_id(u_input):
     if clean_name in STOCK_CACHE: return STOCK_CACHE[clean_name]
     if clean_name.isdigit() and len(clean_name) >= 4: return clean_name
     
+    # 限制 AI 找代碼的時間
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{clean_name}'. Reply ONLY with the 4-digit number."
-    res, status = call_gemini_v5_9(prompt, is_search=True)
+    res, status = call_gemini_v6(prompt, is_search=True)
     if res and (match := re.search(r'\d{4}', res)):
         code = match.group(0)
         STOCK_CACHE[clean_name] = code
@@ -101,16 +103,15 @@ def get_stock_name(stock_id, user_input_name=None):
     if user_input_name and not user_input_name.isdigit(): return user_input_name
     return ""
 
-# --- 🔥 新功能：抓取累積 EPS (取代營收) ---
+# --- 🔥 EPS 抓取 (極速版) ---
 def fetch_eps(stock_id):
-    # ETF 沒有 EPS
     if stock_id.startswith("00"): return "ETF無EPS"
 
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
     
-    # 抓取過去 400 天的財報 (確保涵蓋完整一整年)
-    start = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
+    # 只抓最近 365 天，減少數據量
+    start = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
     params = { 
         "dataset": "TaiwanStockFinancialStatements", 
         "data_id": stock_id, 
@@ -120,28 +121,22 @@ def fetch_eps(stock_id):
     headers = {'User-Agent': 'Mozilla/5.0'}
 
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=8) # 財報資料少，8秒夠了
-        data = res.json().get('data', [])
+        # 🔥 嚴格限制：只給 5 秒，抓不到就跳過！避免拖累整個機器人
+        res = requests.get(url, params=params, headers=headers, timeout=5)
         
+        if res.status_code != 200: return "EPS連線忙碌"
+
+        data = res.json().get('data', [])
         if not data: return "EPS無資料"
 
-        # 篩選出 type 為 EPS 的數據
         eps_data = [d for d in data if d['type'] == 'EPS']
-        
         if not eps_data: return "EPS無資料"
         
-        # 取得最新一筆的年份 (例如 2024)
-        latest_year = eps_data[-1]['date'][:4]
+        # 簡單加總最近 4 季
+        recent_eps = [d['value'] for d in eps_data[-4:]] # 取最後4筆
+        total_eps = sum(recent_eps)
         
-        # 篩選出該年份的所有 EPS 並加總
-        current_year_eps = [d['value'] for d in eps_data if d['date'].startswith(latest_year)]
-        total_eps = sum(current_year_eps)
-        
-        # 找出是第幾季到第幾季 (例如 Q1-Q3)
-        quarters = len(current_year_eps)
-        q_str = f"Q1-Q{quarters}" if quarters > 1 else "Q1"
-        
-        return f"{latest_year}年{q_str}累計 {round(total_eps, 2)}元"
+        return f"近四季累計 {round(total_eps, 2)}元"
 
     except:
         return "EPS讀取逾時"
@@ -154,6 +149,7 @@ def fetch_technical_data(stock_id):
     params = { "dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start, "token": token }
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
+        # 技術面最重要，給 8 秒
         res = requests.get(url, params=params, headers=headers, timeout=8)
         data = res.json().get('data', [])
         if not data: return None
@@ -214,31 +210,24 @@ def callback():
 def handle_message(event):
     u_text = event.message.text.strip()
 
-    # --- Debug 指令 ---
+    # --- Debug 指令 (快速檢查) ---
     if u_text.lower() == "debug":
         token = os.environ.get('FINMIND_TOKEN', '')
-        # 測試 FinMind EPS 抓取
-        test_msg = "連線測試中..."
+        # 測試 FinMind EPS
+        test_msg = "測試中..."
         try:
             url = "https://api.finmindtrade.com/api/v4/data"
             params = { "dataset": "TaiwanStockFinancialStatements", "data_id": "2330", "start_date": "2023-01-01", "token": token }
             headers = {'User-Agent': 'Mozilla/5.0'}
             res = requests.get(url, params=params, headers=headers, timeout=5)
             if res.status_code == 200:
-                test_msg = "✅ 財報數據連線成功"
+                test_msg = "✅ 連線成功"
             else:
-                test_msg = f"❌ 失敗代碼 {res.status_code}"
+                test_msg = f"❌ 失敗({res.status_code})"
         except Exception as e:
-            test_msg = f"❌ 異常: {str(e)[:10]}"
+            test_msg = f"❌ 異常 (Timeout)"
 
-        ai_res, ai_status = call_gemini_v5_9("Hi", is_search=True)
-        
-        reply = (
-            f"🛠️ **v5.9 系統診斷**\n"
-            f"Token: {'✅ 有' if token else '❌ 無'}\n"
-            f"EPS連線: {test_msg}\n"
-            f"AI連線: {ai_status}\n"
-        )
+        reply = f"🛠️ **v6.0 診斷**\nToken: {'✅ 有' if token else '❌ 無'}\nEPS連線: {test_msg}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
@@ -251,6 +240,7 @@ def handle_message(event):
     stock_name = get_stock_name(stock_id, u_text)
     display_name = f"{stock_id} {stock_name}".strip()
 
+    # 平行處理概念：按順序抓，但每個都有嚴格超時限制
     tech = fetch_technical_data(stock_id)
     if not tech:
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無 {stock_id} 資料"))
@@ -260,39 +250,37 @@ def handle_message(event):
     f_sheets = int(chips['foreign'] / 1000)
     t_sheets = int(chips['trust'] / 1000)
     
-    # 🔥 改抓 EPS
+    # 抓 EPS (若超過5秒會直接回傳 "讀取逾時"，不會卡住)
     eps_info = fetch_eps(stock_id)
 
-    # 🔥🔥🔥 Prompt 升級：要求做估值分析 🔥🔥🔥
+    # 🔥🔥🔥 Prompt 修正：要求「條列式、無廢話、重點分析」 🔥🔥🔥
     prompt = (
-        f"角色：資深台股分析師。\n"
-        f"標的：{display_name}，現價 {tech['close']}。\n"
-        f"數據：MA20={tech['ma20']}，量比={tech['vol_ratio']}倍，外資={f_sheets}張，投信={t_sheets}張。\n"
-        f"獲利能力：{eps_info}。\n\n"
+        f"角色：台股分析師。標的：{display_name}。\n"
+        f"現價{tech['close']}，MA20={tech['ma20']}，量比{tech['vol_ratio']}倍。\n"
+        f"外資{f_sheets}張，投信{t_sheets}張。獲利：{eps_info}。\n\n"
         f"【指令】：\n"
-        f"1. **嚴禁廢話**：直接分析，不要開場白。\n"
-        f"2. **估值判斷**：請利用 EPS 粗估本益比，判斷目前股價是「便宜」、「合理」還是「昂貴」。\n"
-        f"3. **字數控制**：約 200 字，完整講完。\n\n"
-        f"【分析內容】：\n"
-        f"1. **量價與趨勢**：(判斷多空結構)\n"
-        f"2. **估值與籌碼**：(重要：請根據 {eps_info} 評論目前股價是否合理？法人是否買單？)\n"
-        f"3. **操作建議**：(進場/觀望策略)\n"
-        f"4. **風險防守**：(停損點與隔日沖提醒)"
+        f"1. **禁止打招呼**，直接列點分析。\n"
+        f"2. **利用 {eps_info} 計算本益比位階(昂貴/便宜)**。\n"
+        f"3. 總字數 200 字以內，不要寫長篇大論，以免超時。\n\n"
+        f"【輸出格式】：\n"
+        f"1. **趨勢與量價**：(簡短判斷)\n"
+        f"2. **估值與籌碼**：(本益比分析)\n"
+        f"3. **操作建議**：(進場/停損點)"
     )
     
-    ai_ans, status = call_gemini_v5_9(prompt)
+    ai_ans, status = call_gemini_v6(prompt)
     
-    # 🌟 版面調整：把營收那行換成 EPS
+    # 組合訊息
     reply = (
-        f"📊 **{display_name} 估值分析**\n"
+        f"📊 **{display_name} 極速分析**\n"
         f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
         f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
         f"🏦 外資: {f_sheets}張 | 投信: {t_sheets}張\n"
-        f"💎 {eps_info}\n"  # 👈 這裡變成顯示 EPS
+        f"💎 {eps_info}\n"
         f"------------------\n"
         f"{ai_ans}\n"
         f"------------------\n"
-        f"(系統: Active | {BOT_VERSION})"
+        f"(系統: {status} | {BOT_VERSION})"
     )
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
