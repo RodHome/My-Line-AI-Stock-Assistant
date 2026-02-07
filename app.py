@@ -25,12 +25,9 @@ STOCK_CACHE = {
     "玉山金": "2884", "元大金": "2885", "兆豐金": "2886", "台新金": "2887",
     "新光金": "2888", "永豐金": "2890", "中信金": "2891", "第一金": "2892",
     "合庫金": "5880", "華南金": "2880",
-    # ETF (只留別名)
-    "台灣50": "0050",
-    "高股息": "0056",
-    "國泰永續": "00878", "永續高股息": "00878", "復華科技": "00929", "科技優息": "00929",
-    "群益精選": "00919", "精選高息": "00919", "台灣價值": "00940", "價值高息": "00940",
-    "台灣5G": "00881"
+    # ETF
+    "0050": "0050", "0056": "0056", "00878": "00878", "00929": "00929",
+    "00919": "00919", "00940": "00940", "00881": "00881"
 }
 
 CODE_TO_NAME = {v: k for k, v in STOCK_CACHE.items()}
@@ -179,4 +176,91 @@ def fetch_chips(stock_id):
     start = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
     params = {"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": stock_id, "start_date": start, "token": token}
     try:
-        headers = {'User-Agent': 'Mozilla/5
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, params=params, headers=headers, timeout=8)
+        data = res.json().get('data', [])
+        if not data: return {"foreign": 0, "trust": 0}
+        latest_date = data[-1]['date']
+        chips = {"foreign": 0, "trust": 0}
+        for row in reversed(data):
+            if row['date'] != latest_date: break
+            if row['name'] == 'Foreign_Investor': chips['foreign'] = row['buy'] - row['sell']
+            elif row['name'] == 'Investment_Trust': chips['trust'] = row['buy'] - row['sell']
+        return chips
+    except: return {"foreign": 0, "trust": 0}
+
+@app.route("/callback", methods=['POST'])
+def callback():
+    signature = request.headers.get('X-Line-Signature')
+    body = request.get_data(as_text=True)
+    try: handler.handle(body, signature)
+    except: abort(400)
+    return 'OK'
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    u_text = event.message.text.strip()
+
+    # Debug 指令
+    if u_text.lower() == "debug":
+        token = os.environ.get('FINMIND_TOKEN', '')
+        ai_res, ai_status = call_gemini_v6_8("Hi", is_search=True)
+        reply = f"🛠️ **v6.8 診斷**\nToken: {'✅OK' if token else '❌未設定'}\nAI: {ai_status}\n功能: 自動修剪斷句"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    # 1. 找股票 (保留 v6.2 的邏輯)
+    stock_id = get_stock_id(u_text)
+
+    # 2. 如果真的找不到，給個提示
+    if not stock_id:
+        reply = "🤖 找不到該股票，請輸入代號 (如 2330) 或正確名稱。"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    # --- 股票分析 ---
+    stock_name = get_stock_name(stock_id, u_text)
+    display_name = f"{stock_id} {stock_name}".strip()
+
+    tech = fetch_technical_data(stock_id)
+    if not tech:
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無 {stock_id} 資料"))
+        return
+
+    chips = fetch_chips(stock_id)
+    f_sheets = int(chips['foreign'] / 1000)
+    t_sheets = int(chips['trust'] / 1000)
+    eps_info = fetch_eps(stock_id)
+
+    # 🔥🔥🔥 修正後的 Prompt：禁止 Markdown，強迫列點 🔥🔥🔥
+    prompt = (
+        f"角色：資深台股分析師。\n"
+        f"標的：{display_name}，現價 {tech['close']}。\n"
+        f"數據：MA20={tech['ma20']}，量比={tech['vol_ratio']}倍，外資={f_sheets}張，投信={t_sheets}張，EPS={eps_info}。\n\n"
+        f"【指令】：\n"
+        f"1. **格式**：請用「1. 2. 3.」列點，**不要**使用 Markdown 標題 (如 ** 或 ##)。\n"
+        f"2. **完整性**：請確保最後一句話有講完，不要斷在半路。\n"
+        f"3. **內容**：\n"
+        f"   1. 趨勢與量價 (多空判斷)\n"
+        f"   2. 估值與籌碼 (EPS與法人動作)\n"
+        f"   3. 操作建議 (進場/防守)\n"
+    )
+    
+    ai_ans, status = call_gemini_v6_8(prompt)
+    
+    reply = (
+        f"📊 **{display_name} 完整分析**\n"
+        f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
+        f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
+        f"🏦 外資: {f_sheets}張 | 投信: {t_sheets}張\n"
+        f"💎 {eps_info}\n"
+        f"------------------\n"
+        f"{ai_ans}\n"
+        f"------------------\n"
+        f"(系統: Active | {BOT_VERSION})"
+    )
+
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+
+if __name__ == "__main__":
+    app.run()
