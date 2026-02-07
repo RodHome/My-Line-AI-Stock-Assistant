@@ -1,16 +1,15 @@
 import os, requests, random, time, re
 import json
+import concurrent.futures # 平行運算
 from datetime import datetime, timedelta
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-# 🔥 新增：平行運算模組
-import concurrent.futures
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v8.3 (Turbo-Scan: Multi-threading)
-BOT_VERSION = "v8.3 (Turbo-Scan)"
+# 🟢 [版本號] v8.4 (Fix-Reply: Single-Response)
+BOT_VERSION = "v8.4 (Turbo-Scan)"
 
 # --- 1. 菁英股票池 (Top 150) ---
 STOCK_CACHE = {
@@ -26,7 +25,7 @@ STOCK_CACHE = {
     "奇鋐": "3017", "雙鴻": "3324", "建準": "2421", "力致": "3483", "愛普": "6531",
     "智原": "3035", "創意": "3443", "世芯": "3661", "M31": "6643", "祥碩": "5269",
     "嘉澤": "3533", "致茂": "2360", "義隆": "2458", "新唐": "4919", "威剛": "3260",
-    "群聯": "8299", "十銓": "4967", "正隆": "1904", "山隆": "2616", "榮剛": "5009",
+    "群聯": "8299", "十銓": "4967", "正隆": "1904", "山隆": "2616", "榮剛": "5009", "增你強": "2340",
     # 金融/傳產
     "富邦金": "2881", "國泰金": "2882", "中信金": "2891", "兆豐金": "2886", "玉山金": "2884",
     "元大金": "2885", "第一金": "2892", "合庫金": "5880", "華南金": "2880", "台新金": "2887",
@@ -52,7 +51,7 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v8_3(prompt, system_instruction=None):
+def call_gemini_v8_4(prompt, system_instruction=None):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -61,7 +60,8 @@ def call_gemini_v8_3(prompt, system_instruction=None):
     random.shuffle(keys)
     max_tokens = 2000
     
-    target_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+    # 優先使用 2.0 Flash
+    target_models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"]
 
     for model in target_models:
         for key in keys:
@@ -156,7 +156,7 @@ def get_stock_id(text):
     if text.isdigit() and len(text) >= 4: return text
     if len(text) > 6 or "推薦" in text: return None
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{text}'. Reply ONLY with the 4-digit number. If NOT stock, return nothing."
-    res, _ = call_gemini_v8_3(prompt)
+    res, _ = call_gemini_v8_4(prompt)
     if res and (match := re.search(r'\d{4}', res)):
         code = match.group(0)
         STOCK_CACHE[text] = code
@@ -184,16 +184,14 @@ def check_stock_worker(code):
 # 🔥 Turbo 掃描引擎
 def scan_recommendations_turbo():
     candidates = []
-    # 隨機抽 20 檔 (數量增加，因為平行運算很快)
-    sample_list = random.sample(list(STOCK_CACHE.values()), 20)
-    # 過濾 ETF
+    # 隨機抽 25 檔 (數量增加)
+    sample_list = random.sample(list(STOCK_CACHE.values()), 25)
     sample_list = [c for c in sample_list if not c.startswith("00")]
     
-    # 啟動平行運算 (最多 10 個執行緒同時查)
+    # 啟動平行運算
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         results = executor.map(check_stock_worker, sample_list)
     
-    # 收集結果
     for res in results:
         if res: candidates.append(res)
         if len(candidates) >= 3: break
@@ -214,17 +212,13 @@ def handle_message(event):
     
     # --- A. 推薦功能 (Turbo) ---
     if msg in ["推薦", "選股", "有什麼好買的"]:
-        loading_text = random.choice([
-            "⚡ Turbo 引擎啟動，正在平行掃描市場...",
-            "🔍 AI 正在多工處理，尋找強勢標的...",
-            "💎 正在從菁英池中篩選法人佈局股..."
-        ])
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=loading_text))
+        # 🔥🔥🔥 修正：不先回覆 "Loading..."，直接掃描並回覆結果 🔥🔥🔥
+        # 這樣就只有一次 reply_message，絕對不會報錯
         
         good_stocks = scan_recommendations_turbo()
         
         if not good_stocks:
-            reply = "⚠️ 掃描了 20 檔菁英股，暫無發現「完美多頭」標的。\n建議目前空手觀望，或稍後再試。"
+            reply = "⚠️ 掃描了 25 檔菁英股，暫無發現「完美多頭(價>月>季+法人買)」標的。\n建議目前空手觀望，或稍後再試。"
         else:
             stocks_str = "\n".join(good_stocks)
             prompt = (
@@ -237,8 +231,8 @@ def handle_message(event):
                 f"   [理由] (簡評)\n"
                 f"   [價位] (支撐壓力)\n"
             )
-            ai_ans, status = call_gemini_v8_3(prompt)
-            reply = f"🎯 **AI 菁英快篩 (Turbo)**\n(條件: 價>季線+法人買)\n------------------\n{ai_ans}\n------------------\n(系統: {status})"
+            ai_ans, status = call_gemini_v8_4(prompt)
+            reply = f"🎯 **AI 菁英快篩**\n(條件: 價>季線+法人買)\n------------------\n{ai_ans}\n------------------\n(系統: {status})"
             
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
@@ -246,8 +240,8 @@ def handle_message(event):
     # --- B. 系統診斷 ---
     if msg.lower() == "debug":
         token_chk = os.environ.get('FINMIND_TOKEN', '')
-        ai_res, ai_stat = call_gemini_v8_3("Hi")
-        reply = f"🛠️ **v8.3 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}\nMode: Parallel Scan"
+        ai_res, ai_stat = call_gemini_v8_4("Hi")
+        reply = f"🛠️ **v8.4 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}\nMode: Parallel Scan"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
@@ -288,7 +282,7 @@ def handle_message(event):
         f"【建議】 (操作策略與防守價)"
     )
     
-    ai_ans, status = call_gemini_v8_3(user_prompt, system_instruction=sys_prompt)
+    ai_ans, status = call_gemini_v8_4(user_prompt, system_instruction=sys_prompt)
     
     reply = (
         f"📊 **{name} {data['close']}**\n"
@@ -298,7 +292,7 @@ def handle_message(event):
         f"------------------\n"
         f"{ai_ans}\n"
         f"------------------\n"
-        f"(系統: {status} | v8.3)"
+        f"(系統: {status} | v8.4)"
     )
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
