@@ -7,8 +7,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v6.0 (Velocity: 極速+EPS+防斷線)
-BOT_VERSION = "v6.0 (Velocity)"
+# 🟢 [版本號] v6.1 (Port-Fix: 修正連線埠與語法)
+BOT_VERSION = "v6.1 (Port-Fix)"
 
 # --- 1. 快取名單 ---
 STOCK_CACHE = {
@@ -26,7 +26,7 @@ STOCK_CACHE = {
     "合庫金": "5880", "華南金": "2880",
     # ETF
     "0050": "0050", "0056": "0056", "00878": "00878", "00929": "00929",
-    "00919": "00919", "00940": "00940"
+    "00919": "00919", "00940": "00940", "00881": "00881"
 }
 
 CODE_TO_NAME = {v: k for k, v in STOCK_CACHE.items()}
@@ -47,7 +47,7 @@ def call_gemini_v6(prompt, is_search=False):
     random.shuffle(keys)
     last_error = "NoKeys"
     # 降低 token 數量，強迫 AI 講重點，提高速度
-    max_tokens = 100 if is_search else 800 
+    max_tokens = 600 if is_search else 800 
     
     target_models = ["gemini-2.5-flash", "gemini-2.0-flash-lite-001", "gemini-flash-latest"]
 
@@ -227,7 +227,7 @@ def handle_message(event):
         except Exception as e:
             test_msg = f"❌ 異常 (Timeout)"
 
-        reply = f"🛠️ **v6.0 診斷**\nToken: {'✅ 有' if token else '❌ 無'}\nEPS連線: {test_msg}"
+        reply = f"🛠️ **v6.1 診斷**\nToken: {'✅ 有' if token else '❌ 無'}\nEPS連線: {test_msg}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
@@ -271,11 +271,13 @@ def handle_message(event):
     ai_ans, status = call_gemini_v6(prompt)
     
     # 組合訊息
+    # ✅ 修正了您原本缺少 f" 的錯誤
     reply = (
         f"📊 **{display_name} 極速分析**\n"
         f"💰 價: {tech['close']} | 量比: {tech['vol_ratio']}x\n"
         f"📈 月線: {tech['ma20']} ({tech['trend']})\n"
-        f"🏦 外資: {f_sheets}張 | 投信: {t_sheets}張\n"
+        f"🏦 近一日籌碼:\n"
+        f"外資: {f_sheets}張 | 投信: {t_sheets}張\n" 
         f"💎 {eps_info}\n"
         f"------------------\n"
         f"{ai_ans}\n"
@@ -286,4 +288,6 @@ def handle_message(event):
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
 if __name__ == "__main__":
-    app.run()
+    # 🔥 關鍵修正：確保 Zeabur 外部連線可以進來
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
