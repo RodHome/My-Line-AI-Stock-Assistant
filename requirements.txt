@@ -1,2 +1,5 @@
-Flask
+Flask>=3.0.0
+line-bot-sdk>=3.7.0
+requests
 gunicorn
+aiohttp>=3.9.3
