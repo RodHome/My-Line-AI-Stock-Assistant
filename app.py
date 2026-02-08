@@ -8,8 +8,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v9.2 (Chip-Signal: Added to Flags)
-BOT_VERSION = "v9.2 (Chip-Signal)"
+# 🟢 [版本號] v9.6 (Format-Fix: Better Layout)
+BOT_VERSION = "v9.6 (Format-Fix)"
 
 # --- 1. 菁英股票池 (Top 150) ---
 STOCK_CACHE = {
@@ -27,7 +27,8 @@ STOCK_CACHE = {
     "建準": "2421", "力致": "3483", "愛普": "6531", "智原": "3035",
     "創意": "3443", "世芯": "3661", "M31": "6643", "祥碩": "5269",
     "嘉澤": "3533", "致茂": "2360", "義隆": "2458", "新唐": "4919",
-    "威剛": "3260", "群聯": "8299", "十銓": "4967", "增你強": "2340",
+    "威剛": "3260", "群聯": "8299", "十銓": "4967", 
+    "增你強": "3028", "強茂": "2481", "超豐": "2441",
     # 傳產與金融
     "富邦金": "2881", "國泰金": "2882", "中信金": "2891", "兆豐金": "2886",
     "玉山金": "2884", "元大金": "2885", "第一金": "2892", "合庫金": "5880",
@@ -45,7 +46,6 @@ STOCK_CACHE = {
 
 CODE_TO_NAME = {v: k for k, v in STOCK_CACHE.items()}
 
-# 🔥 隔日沖券商名單
 DAY_TRADE_BROKERS = """👹 **【知名隔日沖分點名單】**
 1. **凱基-台北**
 2. **元大-土城永寧**
@@ -67,7 +67,7 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v9_2(prompt, system_instruction=None):
+def call_gemini_v9_6(prompt, system_instruction=None):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -75,7 +75,6 @@ def call_gemini_v9_2(prompt, system_instruction=None):
     if not keys: return None, "NoKeys"
     random.shuffle(keys)
     max_tokens = 2000
-    
     target_models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"]
 
     for model in target_models:
@@ -105,7 +104,7 @@ def call_gemini_v9_2(prompt, system_instruction=None):
             except: continue
     return "AI 忙碌中", "Timeout"
 
-# --- 資料抓取 (MA5/20/60) ---
+# --- 資料抓取 ---
 def fetch_data_light(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
@@ -123,12 +122,10 @@ def fetch_data_light(stock_id):
         ma20 = round(sum(closes[-20:]) / 20, 2) if len(closes) >= 20 else 0
         ma60 = round(sum(closes[-60:]) / 60, 2) if len(closes) >= 60 else 0
         
-        # 乖離率
         bias_60 = 0
         if ma60 > 0:
             bias_60 = round((latest['close'] - ma60) / ma60 * 100, 1)
 
-        # 三線糾結 (3%)
         is_squeeze = False
         if ma5 > 0 and ma20 > 0 and ma60 > 0:
             mas = [ma5, ma20, ma60]
@@ -145,30 +142,46 @@ def fetch_data_light(stock_id):
         }
     except: return None
 
-def fetch_chips_quick(stock_id):
+def fetch_chips_accumulate(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        start = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+        start = (datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d')
         res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": stock_id, "start_date": start, "token": token}, headers=headers, timeout=5)
         data = res.json().get('data', [])
-        f, t = 0, 0
-        if data:
-            last_date = data[-1]['date']
-            for row in reversed(data):
-                if row['date'] != last_date: break
-                if row['name'] == 'Foreign_Investor': f = row['buy'] - row['sell']
-                elif row['name'] == 'Investment_Trust': t = row['buy'] - row['sell']
-        return int(f/1000), int(t/1000)
-    except: return 0, 0
+        
+        if not data: return 0, 0, 0, 0
+        
+        latest_date = data[-1]['date']
+        today_f = 0
+        today_t = 0
+        
+        unique_dates = sorted(list(set([d['date'] for d in data])), reverse=True)[:5]
+        acc_f = 0
+        acc_t = 0
+        
+        for row in data:
+            if row['date'] in unique_dates:
+                val = row['buy'] - row['sell']
+                if row['name'] == 'Foreign_Investor':
+                    acc_f += val
+                    if row['date'] == latest_date: today_f = val
+                elif row['name'] == 'Investment_Trust':
+                    acc_t += val
+                    if row['date'] == latest_date: today_t = val
+                    
+        return int(today_f/1000), int(today_t/1000), int(acc_f/1000), int(acc_t/1000)
+    except: return 0, 0, 0, 0
 
 def fetch_full_data(stock_id):
     basic = fetch_data_light(stock_id)
     if not basic: return None
-    f, t = fetch_chips_quick(stock_id)
-    basic['foreign'] = f
-    basic['trust'] = t
+    tf, tt, af, at = fetch_chips_accumulate(stock_id)
+    basic['foreign'] = tf
+    basic['trust'] = tt
+    basic['acc_foreign'] = af
+    basic['acc_trust'] = at
     return basic
 
 def fetch_eps(stock_id):
@@ -193,23 +206,22 @@ def get_stock_id(text):
     if text.isdigit() and len(text) >= 4: return text
     if len(text) > 6 or "推薦" in text or "分點" in text: return None
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{text}'. Reply ONLY with the 4-digit number. If NOT stock, return nothing."
-    res, _ = call_gemini_v9_2(prompt)
+    res, _ = call_gemini_v9_6(prompt)
     if res and (match := re.search(r'\d{4}', res)):
         code = match.group(0)
         STOCK_CACHE[text] = code
         return code
     return None
 
-# Turbo 掃描
-def check_stock_worker(code):
+def check_stock_worker_turbo(code):
     try:
         data = fetch_data_light(code)
         if not data: return None
         if data['close'] > data['ma5'] and data['ma5'] > data['ma20'] and data['ma20'] > data['ma60']:
-            f, t = fetch_chips_quick(code)
-            if (f + t) > 0:
+            tf, tt, af, at = fetch_chips_accumulate(code)
+            if (af + at) > 0:
                 name = CODE_TO_NAME.get(code, code)
-                return f"{name}({code}): 三線多頭且法人買超"
+                return f"{name}({code}): 三線多頭且5日籌碼集中"
     except: return None
     return None
 
@@ -218,7 +230,7 @@ def scan_recommendations_turbo():
     sample_list = random.sample(list(STOCK_CACHE.values()), 25)
     sample_list = [c for c in sample_list if not c.startswith("00")]
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        results = executor.map(check_stock_worker, sample_list)
+        results = executor.map(check_stock_worker_turbo, sample_list)
     for res in results:
         if res: candidates.append(res)
         if len(candidates) >= 3: break
@@ -245,7 +257,7 @@ def handle_message(event):
     if msg in ["推薦", "選股"]:
         good_stocks = scan_recommendations_turbo()
         if not good_stocks:
-            reply = "⚠️ 掃描了 25 檔菁英股，暫無發現「完美多頭 (價>5>20>60)」標的。\n建議觀望，或稍後再試。"
+            reply = "⚠️ 掃描了 25 檔菁英股，暫無發現「完美多頭且籌碼集中」之標的。\n建議觀望，或稍後再試。"
         else:
             stocks_str = "\n".join(good_stocks)
             prompt = (
@@ -258,7 +270,7 @@ def handle_message(event):
                 f"   [理由] (簡述)\n"
                 f"   [價位] (支撐)\n"
             )
-            ai_ans, status = call_gemini_v9_2(prompt)
+            ai_ans, status = call_gemini_v9_6(prompt)
             reply = f"🎯 **AI 菁英推薦**\n------------------\n{ai_ans}\n------------------\n(系統: {status})"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
@@ -266,8 +278,8 @@ def handle_message(event):
     # 3. Debug
     if msg.lower() == "debug":
         token_chk = os.environ.get('FINMIND_TOKEN', '')
-        ai_res, ai_stat = call_gemini_v9_2("Hi")
-        reply = f"🛠️ **v9.2 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
+        ai_res, ai_stat = call_gemini_v9_6("Hi")
+        reply = f"🛠️ **v9.6 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
@@ -283,7 +295,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # 5. 個股分析 (v9.2 新增籌碼訊號)
+    # 5. 個股分析 (v9.6: 格式優化)
     name = CODE_TO_NAME.get(stock_id, stock_id)
     data = fetch_full_data(stock_id)
     
@@ -293,9 +305,8 @@ def handle_message(event):
         
     eps = fetch_eps(stock_id)
 
-    # 🚦 訊號快篩
+    # 訊號快篩
     signals = []
-    # A. 技術面
     if data['is_squeeze']:
         signals.append("⚠️ **均線糾結** (變盤前兆)")
     if data['close'] > data['ma5'] and data['ma5'] > data['ma20'] and data['ma20'] > data['ma60']:
@@ -303,49 +314,48 @@ def handle_message(event):
     if data['bias_60'] > 20:
         signals.append("🔥 **乖離過大** (防回檔)")
     
-    # B. 籌碼面 (新增!)
-    f_net = data['foreign']
-    t_net = data['trust']
-    
-    if f_net > 0 and t_net > 0:
-        signals.append("💰 **雙資聯手** (外資+投信同買)")
-    elif (f_net > 0 and t_net < 0) or (f_net < 0 and t_net > 0):
-        signals.append("😐 **土洋對作** (籌碼分歧)")
-    elif f_net + t_net > 0:
-        signals.append("💰 **法人買超** (籌碼偏多)")
-    elif f_net + t_net < 0:
-        signals.append("💸 **法人賣超** (籌碼偏空)")
+    # 籌碼 (5日)
+    acc_f = data['acc_foreign']
+    acc_t = data['acc_trust']
+    if acc_f > 100 and acc_t > 30:
+        signals.append("💰 **雙資囤貨** (5日連買)")
+    elif acc_f + acc_t > 100:
+        signals.append("💰 **籌碼集中** (波段偏多)")
+    elif acc_f + acc_t < -100:
+        signals.append("💸 **法人提款** (波段偏空)")
 
-    signal_str = "\n".join(signals) if signals else "🟡 **盤整觀望** (多空不明)"
+    signal_str = "\n".join(signals) if signals else "🟡 **盤整觀望** (無明顯趨勢)"
 
-    # AI Prompt (維持簡潔)
-    sys_prompt = "你是一位白話文投資顧問。請直接給結論，不要重複念上面已有的數據。字數嚴格控制在 150 字以內。"
+    sys_prompt = "你是一位白話文投資顧問。請直接給結論，不要重複念數據。字數150字內。"
     user_prompt = (
         f"標的：{stock_id} {name}\n"
         f"數據：現價{data['close']} (MA5={data['ma5']}, MA20={data['ma20']}, MA60={data['ma60']})\n"
-        f"乖離率：{data['bias_60']}%\n"
-        f"籌碼：外資{data['foreign']}張, 投信{data['trust']}張\n"
+        f"籌碼(今日)：外資{data['foreign']}, 投信{data['trust']}\n"
+        f"籌碼(5日累計)：外資{data['acc_foreign']}, 投信{data['acc_trust']}\n"
         f"EPS：{eps}\n\n"
-        f"任務：給小白操作建議。\n"
+        f"任務：給小白操作建議 (重點參考5日籌碼趨勢)。\n"
         f"格式：\n"
-        f"【AI總結】 (🔴賣出/🟡觀望/🟢買進，一句話解釋)\n"
-        f"【分析】 (針對均線型態與籌碼做解讀，勿重複念數字)\n"
-        f"【建議】 (明確的支撐或停損價)"
+        f"【AI總結】 (🔴賣出/🟡觀望/🟢買進)\n"
+        f"【分析】 (解讀趨勢與5日籌碼變化)\n"
+        f"【建議】 (操作價位)"
     )
     
-    ai_ans, status = call_gemini_v9_2(user_prompt, system_instruction=sys_prompt)
+    ai_ans, status = call_gemini_v9_6(user_prompt, system_instruction=sys_prompt)
     
+    # 🔥🔥🔥 修正排版：股票名稱+代號 / 股價換行 🔥🔥🔥
     reply = (
-        f"📊 **{name} {data['close']}**\n"
+        f"📊 **{name}({stock_id})**\n"
+        f"💰 現價：{data['close']}\n"
         f"週: {data['ma5']} | 月: {data['ma20']} | 季: {data['ma60']}\n"
-        f"外資: {data['foreign']} | 投信: {data['trust']}\n"
+        f"外資: {data['foreign']} (5日: {data['acc_foreign']})\n"
+        f"投信: {data['trust']} (5日: {data['acc_trust']})\n"
         f"💎 {eps}\n"
         f"------------------\n"
         f"🚩 **訊號快篩**：\n{signal_str}\n"
         f"------------------\n"
         f"{ai_ans}\n"
         f"------------------\n"
-        f"(系統: {status} | v9.2)"
+        f"(系統: {status} | v9.6)"
     )
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
