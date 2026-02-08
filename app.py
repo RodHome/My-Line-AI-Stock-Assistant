@@ -8,8 +8,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v10.0 (Strategy-Pro: Interactive)
-BOT_VERSION = "v10.0 (Strategy-Pro)"
+# 🟢 [版本號] v10.1 (Fix-Length: Unlock Cost Input)
+BOT_VERSION = "v10.1 (Fix-Length)"
 
 # --- 1. 菁英股票池 ---
 STOCK_CACHE = {
@@ -68,7 +68,7 @@ def health_check():
     return "OK", 200
 
 # --- AI 核心 ---
-def call_gemini_v10(prompt, system_instruction=None):
+def call_gemini_v10_1(prompt, system_instruction=None):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
@@ -105,13 +105,12 @@ def call_gemini_v10(prompt, system_instruction=None):
             except: continue
     return "AI 忙碌中", "Timeout"
 
-# --- 資料抓取 (新增: 斜率、60日高) ---
+# --- 資料抓取 ---
 def fetch_data_light(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        # 抓取 120 天以確保有足夠均線資料
         start = (datetime.now() - timedelta(days=150)).strftime('%Y-%m-%d')
         res = requests.get(url, params={"dataset": "TaiwanStockPrice", "data_id": stock_id, "start_date": start, "token": token}, headers=headers, timeout=5)
         data = res.json().get('data', [])
@@ -125,21 +124,17 @@ def fetch_data_light(stock_id):
         ma20 = round(sum(closes[-20:]) / 20, 2) if len(closes) >= 20 else 0
         ma60 = round(sum(closes[-60:]) / 60, 2) if len(closes) >= 60 else 0
         
-        # 🔥 計算 MA20 斜率 (Slope) - 用來判斷趨勢方向
         slope_ma20 = 0
         if len(closes) >= 25:
-            prev_ma20 = round(sum(closes[-25:-5]) / 20, 2) # 5天前的MA20
+            prev_ma20 = round(sum(closes[-25:-5]) / 20, 2)
             if prev_ma20 > 0:
                 slope_ma20 = round((ma20 - prev_ma20) / prev_ma20 * 100, 2)
 
-        # 🔥 計算 60日最高價 (波段壓力)
         high_60 = max(highs[-60:]) if len(highs) >= 60 else max(highs)
 
-        # 乖離率
         bias_60 = 0
         if ma60 > 0: bias_60 = round((latest['close'] - ma60) / ma60 * 100, 1)
 
-        # 三線糾結
         is_squeeze = False
         if ma5 > 0 and ma20 > 0 and ma60 > 0:
             mas = [ma5, ma20, ma60]
@@ -157,7 +152,6 @@ def fetch_data_light(stock_id):
         }
     except: return None
 
-# 5日籌碼
 def fetch_chips_accumulate(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
@@ -209,18 +203,29 @@ def fetch_eps(stock_id):
         return f"{latest_year}累計{round(sum(vals), 2)}元"
     except: return "逾時"
 
-# --- 核心邏輯 ---
+# --- 核心邏輯 (🔥修正：長度限制 Bug) ---
 def get_stock_id(text):
     text = text.strip()
-    if text in STOCK_CACHE: return STOCK_CACHE[text]
-    if text.isdigit() and len(text) >= 4: return text
-    if len(text) > 6 or "推薦" in text or "分點" in text: return None
-    # 支援: "鴻海成本200" 這種格式的解析
+    
+    # 1. 先把 "成本" 或 "cost" 後面的數字切掉，只留股票名稱
+    # 例如 "強茂成本86.6" -> "強茂"
     clean_text = re.sub(r'(成本|cost).*', '', text, flags=re.IGNORECASE).strip()
+    
+    # 2. 先檢查切完後的字串是否在 Cache
     if clean_text in STOCK_CACHE: return STOCK_CACHE[clean_text]
     
+    # 3. 檢查切完後的字串是否為純數字 (例如 "2330成本500" -> "2330")
+    if clean_text.isdigit() and len(clean_text) >= 4: return clean_text
+
+    # 4. 🔥 這裡才是檢查長度的地方 🔥
+    # 如果使用者輸入 "強茂成本86.6" (長度8)，在上面已經變成 "強茂" (長度2)
+    # 所以不會被這行擋住！
+    # 但如果使用者輸入 "今天天氣真的很好" (長度8)，切完還是長度8，就會被擋住。
+    if len(clean_text) > 6 or "推薦" in text or "分點" in text: return None
+    
+    # 5. 如果上面都沒中，才叫 AI 去猜
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{clean_text}'. Reply ONLY with the 4-digit number. If NOT stock, return nothing."
-    res, _ = call_gemini_v10(prompt)
+    res, _ = call_gemini_v10_1(prompt)
     if res and (match := re.search(r'\d{4}', res)):
         code = match.group(0)
         STOCK_CACHE[clean_text] = code
@@ -240,158 +245,3 @@ def check_stock_worker_turbo(code):
     return None
 
 def scan_recommendations_turbo():
-    candidates = []
-    sample_list = random.sample(list(STOCK_CACHE.values()), 25)
-    sample_list = [c for c in sample_list if not c.startswith("00")]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        results = executor.map(check_stock_worker_turbo, sample_list)
-    for res in results:
-        if res: candidates.append(res)
-        if len(candidates) >= 3: break
-    return candidates
-
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers.get('X-Line-Signature')
-    body = request.get_data(as_text=True)
-    try: handler.handle(body, signature)
-    except: abort(400)
-    return 'OK'
-
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    msg = event.message.text.strip()
-    
-    # 1. 隔日沖
-    if msg in ["分點", "隔日沖", "券商", "主力"]:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=DAY_TRADE_BROKERS))
-        return
-
-    # 2. 推薦
-    if msg in ["推薦", "選股"]:
-        good_stocks = scan_recommendations_turbo()
-        if not good_stocks:
-            reply = "⚠️ 掃描了 25 檔菁英股，暫無發現「完美多頭且籌碼集中」之標的。"
-        else:
-            stocks_str = "\n".join(good_stocks)
-            prompt = (
-                f"你是投資顧問。篩選出強勢股：\n{stocks_str}\n\n"
-                f"任務：給股市小白推薦。\n"
-                f"指令：1.燈號+結論 2.格式:🔥[股票]\n[理由]\n[支撐]"
-            )
-            ai_ans, status = call_gemini_v10(prompt)
-            reply = f"🎯 **AI 菁英推薦**\n------------------\n{ai_ans}\n------------------\n(系統: {status})"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
-
-    # 3. Debug
-    if msg.lower() == "debug":
-        token_chk = os.environ.get('FINMIND_TOKEN', '')
-        ai_res, ai_stat = call_gemini_v10("Hi")
-        reply = f"🛠️ **v10.0 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
-
-    # 4. 🔥 策略模式解析 (偵測是否有「成本」) 🔥
-    user_cost = None
-    cost_match = re.search(r'(成本|cost)[:\s]*(\d+\.?\d*)', msg, re.IGNORECASE)
-    if cost_match:
-        try:
-            user_cost = float(cost_match.group(2))
-        except: pass
-
-    # 5. 判斷股票代號
-    stock_id = get_stock_id(msg)
-    if not stock_id:
-        reply = (
-            "🤖 **功能選單**\n\n"
-            "1. 🔍 **個股健檢**：\n輸入「2330」、「鴻海」\n\n"
-            "2. 🧮 **持股診斷** (新功能!)：\n輸入「鴻海成本200」\n幫你算停利停損點\n\n"
-            "3. 🎯 **潛力推薦**：輸入「推薦」"
-        )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
-
-    # 6. 抓取資料
-    name = CODE_TO_NAME.get(stock_id, stock_id)
-    data = fetch_full_data(stock_id)
-    if not data:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無法讀取 {stock_id} 數據"))
-        return
-    eps = fetch_eps(stock_id)
-
-    # 7. 訊號快篩
-    signals = []
-    # 斜率趨勢
-    if data['slope_ma20'] > 0.5: signals.append("📈 **月線翻揚** (趨勢向上)")
-    elif data['slope_ma20'] < -0.3: signals.append("📉 **月線下彎** (趨勢轉弱)")
-    
-    # 均線型態
-    if data['is_squeeze']: signals.append("⚠️ **均線糾結** (變盤前兆)")
-    if data['close'] > data['ma5'] > data['ma20'] > data['ma60']: signals.append("🟢 **三線多頭** (強勢)")
-    if data['bias_60'] > 20: signals.append("🔥 **乖離過大** (防回檔)")
-    
-    # 籌碼 (5日)
-    acc_f = data['acc_foreign']; acc_t = data['acc_trust']
-    if acc_f > 100 and acc_t > 30: signals.append("💰 **雙資囤貨** (5日連買)")
-    elif acc_f + acc_t > 100: signals.append("💰 **籌碼集中** (波段偏多)")
-    elif acc_f + acc_t < -100: signals.append("💸 **法人提款** (波段偏空)")
-
-    signal_str = "\n".join(signals) if signals else "🟡 **盤整觀望** (無明顯趨勢)"
-
-    # 8. AI Prompt 生成 (區分有沒有成本)
-    sys_prompt = "你是一位白話文投資顧問。直接給結論，不唸數據。字數150字內。"
-    
-    if user_cost:
-        # --- 🅰️ 持有者模式 (Strategy Mode) ---
-        profit_pct = round((data['close'] - user_cost) / user_cost * 100, 1)
-        profit_status = "獲利" if profit_pct > 0 else "虧損"
-        
-        user_prompt = (
-            f"標的：{stock_id} {name}\n"
-            f"現價：{data['close']} (成本：{user_cost}，{profit_status} {profit_pct}%)\n"
-            f"技術：MA20={data['ma20']} (斜率{data['slope_ma20']}%)，60日高點={data['high_60']}\n"
-            f"籌碼(5日)：外資{data['acc_foreign']}, 投信{data['acc_trust']}\n\n"
-            f"任務：給持有者操作建議。\n"
-            f"格式：\n"
-            f"【診斷】 (給燈號 🟢續抱/🟡減碼/🔴停損，並簡述原因)\n"
-            f"【策略】 (根據技術面，明確給出「停利點」與「防守點」的價位數字)"
-        )
-        footer_msg = "" # 已進入策略模式，不用再提示
-    else:
-        # --- 🅱️ 一般健檢模式 (General Mode) ---
-        user_prompt = (
-            f"標的：{stock_id} {name}\n"
-            f"數據：現價{data['close']} (MA20={data['ma20']}, 60日高={data['high_60']})\n"
-            f"籌碼(5日)：外資{data['acc_foreign']}, 投信{data['acc_trust']}\n"
-            f"EPS：{eps}\n\n"
-            f"任務：給小白操作建議。\n"
-            f"格式：\n"
-            f"【AI總結】 (🔴賣出/🟡觀望/🟢買進)\n"
-            f"【分析】 (趨勢與籌碼解讀)\n"
-            f"【建議】 (支撐與壓力價位)"
-        )
-        footer_msg = f"\n💡 **持有這檔嗎？**\n請輸入『{name}成本xxx』(如：{name}成本{int(data['close']*0.9)})\nAI 幫你算停利停損點！"
-
-    ai_ans, status = call_gemini_v10(user_prompt, system_instruction=sys_prompt)
-    
-    reply = (
-        f"📊 **{name}({stock_id})**\n"
-        f"💰 現價：{data['close']}\n"
-        f"週: {data['ma5']} | 月: {data['ma20']} | 季: {data['ma60']}\n"
-        f"外資: {data['foreign']} (5日: {data['acc_foreign']})\n"
-        f"投信: {data['trust']} (5日: {data['acc_trust']})\n"
-        f"💎 {eps}\n"
-        f"------------------\n"
-        f"🚩 **訊號快篩**：\n{signal_str}\n"
-        f"------------------\n"
-        f"{ai_ans}\n"
-        f"------------------\n"
-        f"(系統: {status} | v10.0){footer_msg}"
-    )
-
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
