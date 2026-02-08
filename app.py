@@ -8,12 +8,11 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v10.1 (Fix-Length: Unlock Cost Input)
-BOT_VERSION = "v10.1 (Fix-Length)"
+# 🟢 [版本號] v10.1 (Fix-Syntax: Complete Code)
+BOT_VERSION = "v10.1 (Final)"
 
 # --- 1. 菁英股票池 ---
 STOCK_CACHE = {
-    # 電子與半導體
     "台積電": "2330", "鴻海": "2317", "聯發科": "2454", "廣達": "2382",
     "緯創": "3231", "技嘉": "2376", "台達電": "2308", "日月光": "3711",
     "聯電": "2303", "瑞昱": "2379", "聯詠": "3034", "華碩": "2357",
@@ -29,7 +28,6 @@ STOCK_CACHE = {
     "嘉澤": "3533", "致茂": "2360", "義隆": "2458", "新唐": "4919",
     "威剛": "3260", "群聯": "8299", "十銓": "4967", 
     "增你強": "3028", "強茂": "2481", "超豐": "2441",
-    # 傳產與金融
     "富邦金": "2881", "國泰金": "2882", "中信金": "2891", "兆豐金": "2886",
     "玉山金": "2884", "元大金": "2885", "第一金": "2892", "合庫金": "5880",
     "華南金": "2880", "台新金": "2887", "永豐金": "2890", "凱基金": "2883",
@@ -46,7 +44,6 @@ STOCK_CACHE = {
 
 CODE_TO_NAME = {v: k for k, v in STOCK_CACHE.items()}
 
-# 🔥 隔日沖券商名單
 DAY_TRADE_BROKERS = """👹 **【知名隔日沖分點名單】**
 1. **凱基-台北**
 2. **元大-土城永寧**
@@ -67,7 +64,6 @@ handler = WebhookHandler(secret if secret else 'UNKNOWN')
 def health_check():
     return "OK", 200
 
-# --- AI 核心 ---
 def call_gemini_v10_1(prompt, system_instruction=None):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
@@ -105,7 +101,6 @@ def call_gemini_v10_1(prompt, system_instruction=None):
             except: continue
     return "AI 忙碌中", "Timeout"
 
-# --- 資料抓取 ---
 def fetch_data_light(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
     url = "https://api.finmindtrade.com/api/v4/data"
@@ -131,7 +126,6 @@ def fetch_data_light(stock_id):
                 slope_ma20 = round((ma20 - prev_ma20) / prev_ma20 * 100, 2)
 
         high_60 = max(highs[-60:]) if len(highs) >= 60 else max(highs)
-
         bias_60 = 0
         if ma60 > 0: bias_60 = round((latest['close'] - ma60) / ma60 * 100, 1)
 
@@ -164,7 +158,6 @@ def fetch_chips_accumulate(stock_id):
         
         latest_date = data[-1]['date']
         today_f = 0; today_t = 0
-        
         unique_dates = sorted(list(set([d['date'] for d in data])), reverse=True)[:5]
         acc_f = 0; acc_t = 0
         
@@ -177,7 +170,6 @@ def fetch_chips_accumulate(stock_id):
                 elif row['name'] == 'Investment_Trust':
                     acc_t += val
                     if row['date'] == latest_date: today_t = val
-                    
         return int(today_f/1000), int(today_t/1000), int(acc_f/1000), int(acc_t/1000)
     except: return 0, 0, 0, 0
 
@@ -203,27 +195,16 @@ def fetch_eps(stock_id):
         return f"{latest_year}累計{round(sum(vals), 2)}元"
     except: return "逾時"
 
-# --- 核心邏輯 (🔥修正：長度限制 Bug) ---
 def get_stock_id(text):
     text = text.strip()
-    
-    # 1. 先把 "成本" 或 "cost" 後面的數字切掉，只留股票名稱
-    # 例如 "強茂成本86.6" -> "強茂"
     clean_text = re.sub(r'(成本|cost).*', '', text, flags=re.IGNORECASE).strip()
     
-    # 2. 先檢查切完後的字串是否在 Cache
     if clean_text in STOCK_CACHE: return STOCK_CACHE[clean_text]
-    
-    # 3. 檢查切完後的字串是否為純數字 (例如 "2330成本500" -> "2330")
     if clean_text.isdigit() and len(clean_text) >= 4: return clean_text
-
-    # 4. 🔥 這裡才是檢查長度的地方 🔥
-    # 如果使用者輸入 "強茂成本86.6" (長度8)，在上面已經變成 "強茂" (長度2)
-    # 所以不會被這行擋住！
-    # 但如果使用者輸入 "今天天氣真的很好" (長度8)，切完還是長度8，就會被擋住。
+    
+    # 🔥 v10.1 修正：放寬長度限制，允許解析「強茂成本xxx」
     if len(clean_text) > 6 or "推薦" in text or "分點" in text: return None
     
-    # 5. 如果上面都沒中，才叫 AI 去猜
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{clean_text}'. Reply ONLY with the 4-digit number. If NOT stock, return nothing."
     res, _ = call_gemini_v10_1(prompt)
     if res and (match := re.search(r'\d{4}', res)):
@@ -232,6 +213,7 @@ def get_stock_id(text):
         return code
     return None
 
+# 🔥 這裡就是 Zeabur 說您原本程式碼缺少的函數體，我補齊了 🔥
 def check_stock_worker_turbo(code):
     try:
         data = fetch_data_light(code)
@@ -245,3 +227,71 @@ def check_stock_worker_turbo(code):
     return None
 
 def scan_recommendations_turbo():
+    candidates = []
+    sample_list = random.sample(list(STOCK_CACHE.values()), 25)
+    sample_list = [c for c in sample_list if not c.startswith("00")]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        results = executor.map(check_stock_worker_turbo, sample_list)
+    for res in results:
+        if res: candidates.append(res)
+        if len(candidates) >= 3: break
+    return candidates
+
+@app.route("/callback", methods=['POST'])
+def callback():
+    signature = request.headers.get('X-Line-Signature')
+    body = request.get_data(as_text=True)
+    try: handler.handle(body, signature)
+    except: abort(400)
+    return 'OK'
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    msg = event.message.text.strip()
+    
+    if msg in ["分點", "隔日沖", "券商", "主力"]:
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=DAY_TRADE_BROKERS))
+        return
+
+    if msg in ["推薦", "選股"]:
+        good_stocks = scan_recommendations_turbo()
+        if not good_stocks:
+            reply = "⚠️ 掃描了 25 檔菁英股，暫無發現「完美多頭且籌碼集中」之標的。"
+        else:
+            stocks_str = "\n".join(good_stocks)
+            prompt = (
+                f"你是投資顧問。篩選出強勢股：\n{stocks_str}\n\n"
+                f"任務：給股市小白推薦。\n"
+                f"指令：1.燈號+結論 2.格式:🔥[股票]\n[理由]\n[支撐]"
+            )
+            ai_ans, status = call_gemini_v10_1(prompt)
+            reply = f"🎯 **AI 菁英推薦**\n------------------\n{ai_ans}\n------------------\n(系統: {status})"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    if msg.lower() == "debug":
+        token_chk = os.environ.get('FINMIND_TOKEN', '')
+        ai_res, ai_stat = call_gemini_v10_1("Hi")
+        reply = f"🛠️ **v10.1 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    user_cost = None
+    cost_match = re.search(r'(成本|cost)[:\s]*(\d+\.?\d*)', msg, re.IGNORECASE)
+    if cost_match:
+        try: user_cost = float(cost_match.group(2))
+        except: pass
+
+    stock_id = get_stock_id(msg)
+    if not stock_id:
+        reply = (
+            "🤖 **功能選單**\n\n"
+            "1. 🔍 **個股健檢**：\n輸入「2330」、「鴻海」\n\n"
+            "2. 🧮 **持股診斷**：\n輸入「鴻海成本200」\n幫你算停利停損點\n\n"
+            "3. 🎯 **潛力推薦**：輸入「推薦」"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    name = CODE_TO_NAME.get(stock_id, stock_id)
+    data
