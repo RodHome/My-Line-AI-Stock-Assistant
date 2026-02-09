@@ -8,8 +8,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v10.4 (Sniper: 50-Word Limit)
-BOT_VERSION = "v10.4 (Sniper)"
+# 🟢 [版本號] v10.41 (Sniper: 50-Word Limit)
+BOT_VERSION = "v10.41 (Sniper)"
 
 # --- 1. 菁英股票池 ---
 STOCK_CACHE = {
@@ -71,7 +71,7 @@ def call_gemini_sniper(prompt, system_instruction=None):
     
     if not keys: return None, "NoKeys"
     random.shuffle(keys)
-    # v10.4: 雖然限制 50 字，但保留 4000 token 以防萬一，重點在 prompt 控制
+    # v10.41: 雖然限制 50 字，但保留 4000 token 以防萬一，重點在 prompt 控制
     max_tokens = 4000
     target_models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"]
 
@@ -260,7 +260,7 @@ def handle_message(event):
         else:
             stocks_str = "\n".join(good_stocks)
             
-            # v10.4 關鍵 Prompt 修改：無情機器人模式
+            # v10.41 關鍵 Prompt 修改：無情機器人模式
             sys_prompt = (
                 "角色：無情的報價機器。\n"
                 "任務：從下列股票中選出最強勢的3檔。\n"
@@ -288,7 +288,7 @@ def handle_message(event):
     if msg.lower() == "debug":
         token_chk = os.environ.get('FINMIND_TOKEN', '')
         ai_res, ai_stat = call_gemini_sniper("Hi")
-        reply = f"🛠️ **v10.4 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
+        reply = f"🛠️ **v10.41 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
