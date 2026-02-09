@@ -8,8 +8,8 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 🟢 [版本號] v10.4 (Emoji-Mix + Stable Fix)
-BOT_VERSION = "v10.4 (Emoji-Mix)"
+# 🟢 [版本號] v10.4 (Sniper: 50-Word Limit)
+BOT_VERSION = "v10.4 (Sniper)"
 
 # --- 1. 菁英股票池 ---
 STOCK_CACHE = {
@@ -64,15 +64,15 @@ handler = WebhookHandler(secret if secret else 'UNKNOWN')
 def health_check():
     return "OK", 200
 
-def call_gemini_v10_4(prompt, system_instruction=None):
-    # 增加 Keys 隨機性與多樣性
+def call_gemini_sniper(prompt, system_instruction=None):
     keys = [os.environ.get(f'GEMINI_API_KEY_{i}') for i in range(1, 7) if os.environ.get(f'GEMINI_API_KEY_{i}')]
     if not keys and os.environ.get('GEMINI_API_KEY'):
         keys = [os.environ.get('GEMINI_API_KEY')]
     
     if not keys: return None, "NoKeys"
     random.shuffle(keys)
-    max_tokens = 2000
+    # v10.4: 雖然限制 50 字，但保留 4000 token 以防萬一，重點在 prompt 控制
+    max_tokens = 4000
     target_models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"]
 
     for model in target_models:
@@ -81,30 +81,26 @@ def call_gemini_v10_4(prompt, system_instruction=None):
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 headers = {'Content-Type': 'application/json'}
                 params = {'key': key}
-                
-                # 強化 prompt 結構，避免 AI 斷片
                 contents = [{"parts": [{"text": prompt}]}]
                 if system_instruction:
-                    # 強制注入防斷片指令
-                    safe_instruction = f"{system_instruction}\n(IMPORTANT: Do NOT use markdown lists like '*' or '-'. Output plain text in strict format.)"
-                    full_prompt = f"【系統指令】：{safe_instruction}\n\n【用戶請求】：{prompt}"
+                    full_prompt = f"【系統指令】：{system_instruction}\n\n【用戶請求】：{prompt}"
                     contents = [{"parts": [{"text": full_prompt}]}]
 
                 payload = {
                     "contents": contents,
                     "generationConfig": {
                         "maxOutputTokens": max_tokens, 
-                        "temperature": 0.3
+                        "temperature": 0.2  # 降低溫度，讓回答更收斂、更像機器人
                     }
                 }
-                response = requests.post(url, headers=headers, params=params, json=payload, timeout=25)
+                response = requests.post(url, headers=headers, params=params, json=payload, timeout=45)
                 if response.status_code == 200:
                     data = response.json()
                     text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
                     if text: return text.strip(), "Active"
                 continue
             except: continue
-    return "AI 忙碌中", "Timeout"
+    return "AI 忙碌中(逾時)", "Timeout"
 
 def fetch_data_light(stock_id):
     token = os.environ.get('FINMIND_TOKEN', '')
@@ -210,7 +206,7 @@ def get_stock_id(text):
     if len(clean_text) > 6 or "推薦" in text or "分點" in text: return None
     
     prompt = f"Identify the 4-digit stock code for Taiwan stock '{clean_text}'. Reply ONLY with the 4-digit number. If NOT stock, return nothing."
-    res, _ = call_gemini_v10_4(prompt)
+    res, _ = call_gemini_sniper(prompt)
     if res and (match := re.search(r'\d{4}', res)):
         code = match.group(0)
         STOCK_CACHE[clean_text] = code
@@ -256,25 +252,42 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=DAY_TRADE_BROKERS))
         return
 
+    # 🔥 [功能 1] 推薦選股 (Sniper Mode)
     if msg in ["推薦", "選股"]:
         good_stocks = scan_recommendations_turbo()
         if not good_stocks:
             reply = "⚠️ 掃描了 25 檔菁英股，暫無發現「完美多頭且籌碼集中」之標的。"
         else:
             stocks_str = "\n".join(good_stocks)
-            prompt = (
-                f"你是投資顧問。篩選出強勢股：\n{stocks_str}\n\n"
-                f"任務：給股市小白推薦。\n"
-                f"指令：1.燈號+結論 2.格式:🔥[股票]\n[理由]\n[支撐]"
+            
+            # v10.4 關鍵 Prompt 修改：無情機器人模式
+            sys_prompt = (
+                "角色：無情的報價機器。\n"
+                "任務：從下列股票中選出最強勢的3檔。\n"
+                "嚴格限制：\n"
+                "1. 絕對不要開場白（如'好的'、'以下是'）。\n"
+                "2. 絕對不要結尾（如'投資有風險'）。\n"
+                "3. 每檔股票說明嚴格限制在 50 字以內。\n"
+                "4. 說明內容只能包含：『題材利多』+『籌碼動向』。\n"
+                "格式範例：\n"
+                "🔥**台積電(2330)**\n"
+                "[理由] CoWoS產能滿載，外資連買3日，均線多頭排列。\n"
+                "[支撐] 950元"
             )
-            ai_ans, status = call_gemini_v10_4(prompt)
-            reply = f"🎯 **AI 菁英推薦**\n------------------\n{ai_ans}\n------------------\n(系統: {status})"
+            
+            user_prompt = f"請篩選並推薦這些股票：\n{stocks_str}"
+            
+            ai_ans, status = call_gemini_sniper(user_prompt, system_instruction=sys_prompt)
+            
+            # 移除了 "AI 菁英推薦" 這種標題，直接顯示結果
+            reply = f"{ai_ans}\n------------------\n(系統: {status})"
+            
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
     if msg.lower() == "debug":
         token_chk = os.environ.get('FINMIND_TOKEN', '')
-        ai_res, ai_stat = call_gemini_v10_4("Hi")
+        ai_res, ai_stat = call_gemini_sniper("Hi")
         reply = f"🛠️ **v10.4 診斷**\nToken: {'✅' if token_chk else '❌'}\nAI: {ai_stat}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
@@ -305,27 +318,26 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無法讀取 {stock_id} 數據"))
         return
 
-    # 4. 判斷回覆模式 (極速版 vs 完整版)
+    # 4. 判斷回覆模式
     if user_cost:
-        # [模式 A] 持股診斷 (精簡版 + 理由)
+        # [模式 A] 持股診斷 (Sniper 版)
         profit_pct = round((data['close'] - user_cost) / user_cost * 100, 1)
         profit_status = "獲利" if profit_pct > 0 else "虧損"
         profit_icon = "💰" if profit_pct > 0 else "💸"
         
-        # 強制 AI 不使用 Markdown 列表，避免截斷
-        sys_prompt = "你是一位果斷的操盤手。直接給指令，不要條列式。數值後方請用括號說明技術依據 (如：前高壓力、月線支撐)。"
+        # 強制極簡
+        sys_prompt = "你是無情的停損停利機器。不要廢話。嚴格限制總字數 100 字以內。"
         user_prompt = (
             f"標的：{stock_id} {name}\n"
             f"現價：{data['close']} (成本：{user_cost}，{profit_status} {profit_pct}%)\n"
-            f"技術指標：MA20={data['ma20']} (斜率{data['slope_ma20']}%)，60日高={data['high_60']}\n"
+            f"技術：MA20={data['ma20']} (斜率{data['slope_ma20']}%)，60日高={data['high_60']}\n"
             f"籌碼：外資5日累積{data['acc_foreign']}張，投信{data['acc_trust']}張\n\n"
-            f"任務：給出明確操作指令，並說明價位設定的理由。\n"
-            f"嚴格輸出格式 (不要用 * 或 - 符號)：\n"
-            f"【診斷】 (🟢續抱 / 🟡減碼 / 🔴停損) - 一句話理由\n"
-            f"【策略】 停利：xxx (簡述理由) / 防守：xxx (簡述理由)"
+            f"指令：\n"
+            f"【診斷】 (🟢續抱 / 🟡減碼 / 🔴停損) - 10字內理由\n"
+            f"【策略】 停利：xxx元 / 防守：xxx元"
         )
         
-        ai_ans, status = call_gemini_v10_4(user_prompt, system_instruction=sys_prompt)
+        ai_ans, status = call_gemini_sniper(user_prompt, system_instruction=sys_prompt)
         
         reply = (
             f"🩺 **持股診斷：{name}({stock_id})**\n"
@@ -333,52 +345,50 @@ def handle_message(event):
             f"------------------\n"
             f"{ai_ans}\n"
             f"------------------\n"
-            f"(系統: {status} | v10.4)"
+            f"(系統: {status})"
         )
     
     else:
-        # [模式 B] 個股健檢 (完整版 + Emoji)
+        # [模式 B] 個股健檢 (Sniper 版)
         eps = fetch_eps(stock_id)
         signals = []
-        if data['slope_ma20'] > 0.5: signals.append("📈 **月線翻揚** (趨勢向上)")
-        elif data['slope_ma20'] < -0.3: signals.append("📉 **月線下彎** (趨勢轉弱)")
-        if data['is_squeeze']: signals.append("⚠️ **均線糾結** (變盤前兆)")
-        if data['close'] > data['ma5'] > data['ma20'] > data['ma60']: signals.append("🟢 **三線多頭** (強勢)")
-        if data['bias_60'] > 20: signals.append("🔥 **乖離過大** (防回檔)")
+        if data['slope_ma20'] > 0.5: signals.append("📈月線翻揚")
+        elif data['slope_ma20'] < -0.3: signals.append("📉月線下彎")
+        if data['is_squeeze']: signals.append("⚠️均線糾結")
+        if data['close'] > data['ma5'] > data['ma20'] > data['ma60']: signals.append("🟢三線多頭")
+        if data['bias_60'] > 20: signals.append("🔥乖離過大")
         
         acc_f = data['acc_foreign']; acc_t = data['acc_trust']
-        if acc_f > 100 and acc_t > 30: signals.append("💰 **雙資囤貨** (5日連買)")
-        elif acc_f + acc_t > 100: signals.append("💰 **籌碼集中** (波段偏多)")
-        elif acc_f + acc_t < -100: signals.append("💸 **法人提款** (波段偏空)")
-        signal_str = "\n".join(signals) if signals else "🟡 **盤整觀望** (無明顯趨勢)"
+        if acc_f > 100 and acc_t > 30: signals.append("💰雙資囤貨")
+        elif acc_f + acc_t > 100: signals.append("💰籌碼集中")
+        elif acc_f + acc_t < -100: signals.append("💸法人提款")
+        signal_str = " | ".join(signals) if signals else "🟡盤整觀望"
 
+        # 強制極簡
+        sys_prompt = "你是無情的分析機器。不要打招呼。字數限制 50 字。"
         user_prompt = (
             f"標的：{stock_id} {name}\n"
             f"數據：現價{data['close']} (MA20={data['ma20']}, 60日高={data['high_60']})\n"
             f"籌碼(5日)：外資{data['acc_foreign']}, 投信{data['acc_trust']}\n"
             f"EPS：{eps}\n\n"
-            f"任務：給小白操作建議。\n"
-            f"格式：\n"
-            f"【AI總結】 (🔴賣出/🟡觀望/🟢買進)\n"
-            f"【分析】 (一句話解讀趨勢與籌碼)\n"
-            f"【建議】 (給出支撐與壓力價位)"
+            f"指令：\n"
+            f"【總結】 (🔴賣出/🟡觀望/🟢買進)\n"
+            f"【分析】 (一句話講重點)\n"
+            f"【支撐】 xxx元"
         )
-        ai_ans, status = call_gemini_v10_4(user_prompt, system_instruction="你是一位簡潔的分析師。")
+        ai_ans, status = call_gemini_sniper(user_prompt, system_instruction=sys_prompt)
 
-        # 這裡套用了您指定的 Emoji 風格
         reply = (
             f"📊 **{name}({stock_id})**\n"
-            f"💰 現價：{data['close']}\n"
-            f"⚡週: {data['ma5']} | 月: {data['ma20']} | 季: {data['ma60']}\n"
-            f"🤝外資: {data['foreign']} (5日: {data['acc_foreign']})\n"
-            f"🏦投信: {data['trust']} (5日: {data['acc_trust']})\n"
+            f"💰 {data['close']} (MA20: {data['ma20']})\n"
+            f"外資: {data['acc_foreign']} | 投信: {data['acc_trust']}\n"
             f"💎 {eps}\n"
             f"------------------\n"
-            f"🚩 **訊號快篩**：\n{signal_str}\n"
+            f"{signal_str}\n"
             f"------------------\n"
             f"{ai_ans}\n"
             f"------------------\n"
-            f"(系統: {status} | v10.4)\n💡 輸入『{name}成本xxx』\nAI 幫你算停利停損點！"
+            f"(系統: {status})"
         )
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
