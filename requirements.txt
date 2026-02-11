@@ -4,5 +4,3 @@ requests
 twstock
 gunicorn
 lxml
-psutil
-google-generativeai
