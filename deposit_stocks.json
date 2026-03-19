@@ -278,19 +278,5 @@
         "yield_formula": "預估配息 5.300 / 股價 37.49",
         "signal": "🟢 平穩",
         "action": "【定期定額】價值平衡。"
-    },
-    {
-        "code": "00929",
-        "name": "復華台灣科技優息",
-        "price": 19.98,
-        "bias_6": NaN,
-        "bias_12": NaN,
-        "bias_24": NaN,
-        "bias_20": NaN,
-        "bias_60": NaN,
-        "yield_rate": 6.61,
-        "yield_formula": "預估配息 1.320 / 股價 19.98",
-        "signal": "🚨 重壓",
-        "action": "【大舉進場】市場恐慌超跌，長線買點浮現！"
-    }
+    }    
 ]
