@@ -6,16 +6,18 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from io import StringIO
+import yfinance as yf
 
-# ================= 新增：FinMind 查詢區域 =================
-FINMIND_TOKEN = os.environ.get('FINMIND_TOKEN', '')
+# 🔥 雙鑰匙負載平衡系統：合併訪客與會員額度 (總計 900次/小時)
+GUEST_TOKEN = "" # 訪客鑰匙 (消耗 IP 免費 300 次)
+VIP_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNi0wMy0xOCAxOToyODoyNCIsInVzZXJfaWQiOiJyb2Q3NDEwMDEyIiwiZW1haWwiOiJyb2Q3NDEwMDFAZ21haWwuY29tIiwiaXAiOiIxMjIuMTE2LjE1OS4xMzQifQ.qmaLCfxjbwXRYo8TwFZKboTfmAADIMs0CWw-oPUJU4g"
 
 def get_finmind_chips(code):
     """查詢近 5 日法人買超張數 (抗長假 30 天版)"""
     start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     url = "https://api.finmindtrade.com/api/v4/data"
     try:
-        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=10)
+        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=10)
         data = res.json().get('data', [])
         if not data: return 0, 0
         unique_dates = sorted(list(set([d['date'] for d in data])), reverse=True)
@@ -41,7 +43,7 @@ def get_finmind_revenue_yoy(code):
     }
     
     try:
-        res = requests.get(url, params={"dataset": "TaiwanStockMonthRevenue", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=10)
+        res = requests.get(url, params={"dataset": "TaiwanStockMonthRevenue", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=10)
         data = res.json().get('data', [])
         
         if not data: return default_res
@@ -78,6 +80,95 @@ def get_finmind_revenue_yoy(code):
     except Exception as e:
         default_res["debug_info"]["status"] = f"Error: {str(e)}"
         return default_res
+#==========3/17==================================
+# 🔥 [為左側雷達新增] 專門抓取近 N 日的法人買賣超陣列
+def get_finmind_chips_history(code, days=3):
+    start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    url = "https://api.finmindtrade.com/api/v4/data"
+    history = []
+    try:
+        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=10)
+        data = res.json().get('data', [])
+        if not data: return [0]*days
+        
+        unique_dates = sorted(list(set([d['date'] for d in data])), reverse=True)
+        target_dates = unique_dates[:days]
+        target_dates.reverse() # 把舊的排前面，新的排後面
+        
+        for t_date in target_dates:
+            daily_net = 0
+            for row in data:
+                if row['date'] == t_date:
+                    val = (row['buy'] - row['sell']) // 1000
+                    if row['name'] in ['Foreign_Investor', 'Investment_Trust']:
+                        daily_net += val
+            history.append(daily_net)
+        return history
+    except: return [0]*days
+
+# 🔥 [為左側/存股雷達新增] 查詢單季 EPS 與 殖利率 (動態頻率推算版)
+# ==========================================
+# ==========================================
+# 區塊：FinMind 基本面與殖利率查詢 (雙軌分流版)
+# 用途：EPS 扣訪客額度，殖利率扣 VIP 額度，極大化 API 使用率
+# ==========================================
+def get_finmind_fundamentals(code, current_price, fetch_yield=True):
+    eps_latest = 0.0
+    yield_rate = 0.0
+    annual_div = 0.0
+    
+    start = (datetime.now() - timedelta(days=800)).strftime('%Y-%m-%d')
+    url = "https://api.finmindtrade.com/api/v4/data"
+    
+    # 1. 抓取最新 EPS (🔥 分流：消耗 GUEST_TOKEN 免費額度)
+    try:
+        res = requests.get(url, params={"dataset": "TaiwanStockFinancialStatements", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=5)
+        if res.status_code == 200:
+            data = res.json().get('data', [])
+            eps_data = [d for d in data if d['type'] == 'EPS']
+            if eps_data: eps_latest = float(eps_data[-1].get('value', 0))
+    except: pass
+    
+    # 🌟 額度防護機制：Task 3 到此為止，回傳 3 個變數
+    if not fetch_yield:
+        return eps_latest, yield_rate, annual_div
+
+    # 2. 抓取殖利率 (🔥 分流：只有 Task 4 會走到這，消耗 VIP_TOKEN 額度)
+    try:
+        res_div = requests.get(url, params={"dataset": "TaiwanStockDividend", "data_id": code, "start_date": start, "token": VIP_TOKEN}, timeout=10)
+        if res_div.status_code == 200:
+            data_div = res_div.json().get('data', [])
+            if data_div:
+                data_div = sorted(data_div, key=lambda x: x.get('date', ''))
+                valid_cash_records = []
+                for d in data_div:
+                    v1 = d.get('CashEarningsDistribution') or 0
+                    v2 = d.get('CashStatutorySurplus') or 0
+                    v3 = d.get('CashCapitalReserve') or 0
+                    total = float(v1) + float(v2) + float(v3)
+                    if total > 0:
+                        valid_cash_records.append({'date': d.get('date'), 'cash': total})
+                
+                if valid_cash_records:
+                    valid_cash_records = sorted(valid_cash_records, key=lambda x: x['date'], reverse=True)
+                    latest_cash = valid_cash_records[0]['cash']
+                    multiplier = 1
+                    if len(valid_cash_records) >= 2:
+                        d_new = datetime.strptime(valid_cash_records[0]['date'], '%Y-%m-%d')
+                        d_old = datetime.strptime(valid_cash_records[1]['date'], '%Y-%m-%d')
+                        days_diff = (d_new - d_old).days
+                        if days_diff <= 45: multiplier = 12
+                        elif days_diff <= 120: multiplier = 4
+                        elif days_diff <= 240: multiplier = 2
+                    
+                    # 🔥 計算分子並回傳
+                    annual_div = round(latest_cash * multiplier, 3)
+                    if current_price > 0:
+                        yield_rate = round((annual_div / current_price) * 100, 2)
+    except: pass
+        
+    return eps_latest, yield_rate, annual_div
+#==========3/17==================================
 # ========================================================
 
 # --- 功能 1: 抓取所有股票代號與產業分類 (精準過濾版) ---
@@ -447,3 +538,400 @@ if __name__ == "__main__":
     # 執行兩個任務
     update_stock_list_json()
     generate_daily_recommendations()
+
+#----------3/13增加左側交易-------------
+# ========================================================
+# 🔥 新增功能 3: 【左側交易：三層漏斗價值雷達】(100% 獨立產線)
+# ========================================================
+def generate_left_side_value():
+    print("\n🛡️ [Task 3] 啟動左側交易：重裝價值雷達 (三層漏斗過濾)...")
+    
+    # 讀取基礎股票池
+    stock_meta = {}
+    try:
+        with open('stock_list.json', 'r', encoding='utf-8') as f:
+            stock_meta = {k: v for k, v in json.load(f).items() if v.get('type') == '股票'}
+    except Exception as e:
+        print(f"⚠️ 讀取 stock_list.json 失敗，左側雷達中止: {e}")
+        return
+
+    # ---------------------------------------------------------
+    # 🌊 第一層：大數據降維 (流動性 5,000萬 ~ 3億)
+    # 為了 100% 不干擾右側，我們在左側雷達內自己發動一次輕量級爬蟲
+    # ---------------------------------------------------------
+    print("🌊 [第一層] 大數據降維：尋找流動性 1000萬~3億 的潛伏股...")
+    layer1_candidates = []
+    
+    # 1. 抓取上市 (TWSE) 最新交易日
+    try:
+        res = requests.get("https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=ALLBUT0999", timeout=10)
+        data = res.json()
+        if data.get('stat') == 'OK':
+            target_table = next((t for t in data.get('tables', []) if '證券代號' in t.get('fields', [])), None)
+            if not target_table and 'data9' in data:
+                target_table = {'data': data['data9'], 'fields': data.get('fields9', [])}
+
+            if target_table:
+                fields = target_table['fields']
+                idx_code = fields.index("證券代號") if "證券代號" in fields else 0
+                idx_turnover = fields.index("成交金額") if "成交金額" in fields else 4
+                idx_price = fields.index("收盤價") if "收盤價" in fields else 8
+
+                for row in target_table['data']:
+                    code = row[idx_code]
+                    if code not in stock_meta: continue
+                    try:
+                        turnover = float(row[idx_turnover].replace(',', ''))
+                        price = float(row[idx_price].replace(',', ''))
+                        # 🔥 條件：成交金額 1000萬 ~ 3億，且股價 > 10元
+                        if 10000000 <= turnover <= 300000000 and price >= 10:
+                            layer1_candidates.append({"code": code, "price": price, "market": "TW"})
+                    except: pass
+    except Exception as e:
+        print(f"⚠️ TWSE 第一層抓取錯誤: {e}")
+
+    # 2. 抓取上櫃 (TPEx) 最新交易日
+    try:
+        base_date = datetime.now(timezone.utc) + timedelta(hours=8)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        for i in range(6): # 往回找最近的交易日
+            check_date = base_date - timedelta(days=i)
+            roc_date = f"{check_date.year - 1911}/{check_date.strftime('%m/%d')}"
+            url_otc = f"https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d={roc_date}&se=EW"
+            res_otc = requests.get(url_otc, headers=headers, timeout=10)
+            temp_data = res_otc.json()
+            if 'tables' in temp_data and temp_data['tables'] and len(temp_data['tables'][0].get('data', [])) > 0:
+                table = temp_data['tables'][0]
+                fields = [str(f).strip() for f in table.get('fields', [])]
+                idx_code = fields.index("代號") if "代號" in fields else 0
+                idx_turnover = fields.index("成交金額(元)") if "成交金額(元)" in fields else 8
+                idx_price = fields.index("收盤") if "收盤" in fields else 2
+                
+                for row in table['data']:
+                    code = str(row[idx_code]).strip()
+                    if code not in stock_meta: continue
+                    try:
+                        price_str = str(row[idx_price]).replace(',', '').strip()
+                        turnover_str = str(row[idx_turnover]).replace(',', '').strip()
+                        if price_str in ['----', '--', '除息', '除權'] or turnover_str in ['--', '']: continue
+                        turnover = float(turnover_str)
+                        price = float(price_str)
+                        # 🔥 條件：成交金額 1000萬 ~ 3億，且股價 > 10元
+                        if 10000000 <= turnover <= 300000000 and price >= 10:
+                            layer1_candidates.append({"code": code, "price": price, "market": "TWO"})
+                    except: pass
+                break
+            time.sleep(0.3)
+    except Exception as e:
+        print(f"⚠️ TPEx 第一層抓取錯誤: {e}")
+
+    print(f"✅ 第一層降維完畢，全市場 2000 檔中，共 {len(layer1_candidates)} 檔符合流動性門檻，進入第二層。")
+
+    # ---------------------------------------------------------
+    # 📉 第二層：位階與動能過濾 (新增量縮比例與週線運算)
+    # ---------------------------------------------------------
+    print("📉 [第二層] 啟動 yfinance 計算：尋找負乖離、量縮窒息、低波築底...")
+    layer2_candidates = []
+    
+    for item in layer1_candidates:
+        code = item['code']
+        try:
+            ticker = yf.Ticker(f"{code}.{item['market']}")
+            df = ticker.history(period="6mo") 
+            if df.empty or len(df) < 60: continue
+
+            closes = df['Close'].tolist()
+            lows = df['Low'].tolist()
+            highs = df['High'].tolist()
+            volumes = df['Volume'].tolist()
+
+            close_today = closes[-1]
+            ma60 = sum(closes[-60:]) / 60
+            ma24 = sum(closes[-24:]) / 24 # 🔥 新增月線
+            ma6 = sum(closes[-6:]) / 6    # 🔥 新增週線
+            
+            bias60 = (close_today - ma60) / ma60
+            bias24 = (close_today - ma24) / ma24
+            bias6 = (close_today - ma6) / ma6
+
+            if bias60 >= -0.03: continue
+            
+            vol_today = volumes[-1]
+            ma20_vol = sum(volumes[-20:]) / 20
+            vol_ratio = vol_today / ma20_vol # 🔥 記錄量縮比例，用來算分數
+            
+            if vol_ratio >= 0.8: continue
+            
+            recent_10_high = max(highs[-10:])
+            recent_10_low = min(lows[-10:])
+            amplitude = (recent_10_high - recent_10_low) / recent_10_low
+            
+            if amplitude >= 0.12: continue
+            if (close_today - closes[-5]) / closes[-5] >= 0.05: continue
+
+            # 通過第二層考驗，把數據打包給第三層算分
+            item['bias60'] = bias60
+            item['bias24'] = bias24 # 傳遞給第三層
+            item['bias6'] = bias6   # 傳遞給第三層
+            item['vol_ratio'] = vol_ratio
+            item['amplitude'] = amplitude
+            item['ma60'] = ma60
+            layer2_candidates.append(item)
+            
+        except Exception: pass
+        time.sleep(0.1)
+
+    print(f"✅ 第二層過濾完畢，剩餘 {len(layer2_candidates)} 檔進入終極基本面與評分查核。")
+
+    # ---------------------------------------------------------
+    # 🏦 第三層：聰明錢定錨與 🌟信心評分系統 (Scoring Model)
+    # ---------------------------------------------------------
+    print("🏦 [第三層] 啟動 FinMind 查核與評分：法人連買、EPS、黃金交叉探測...")
+    final_list = []
+    
+    for item in layer2_candidates:
+        code = item['code']
+        # 🔥 加上 , _ 接住第三個變數
+        eps, yield_rate, _ = get_finmind_fundamentals(code, item['price'], fetch_yield=False)
+
+        if eps <= 0: continue # 🔴 淘汰虧損股
+        
+        yoy_data = get_finmind_revenue_yoy(code)
+        yoy = yoy_data['yoy']
+        
+        chips_history = get_finmind_chips_history(code, days=5)
+        buy_days = sum(1 for x in chips_history if x > 0)
+        
+        # 門檻：法人至少買 3 天 (或轉機股特例)
+        if buy_days >= 4 or (buy_days == 3 and yoy > -15.0):
+            
+            # 🎯 啟動計分模型 (Base: 50)
+            score = 50 
+            
+            # 1. 籌碼權重 (Max 30)
+            if buy_days == 5: score += 30
+            elif buy_days == 4: score += 20
+            elif buy_days == 3: score += 10
+            
+            # 2. 量縮權重 (Max 10)
+            if item['vol_ratio'] < 0.5: score += 10
+            elif item['vol_ratio'] < 0.6: score += 8
+            elif item['vol_ratio'] < 0.7: score += 5
+            
+            # 3. 乖離權重 (Max 10)
+            bias_pct = item['bias60'] * 100
+            if -8.0 <= bias_pct <= -5.0: score += 10
+            elif bias_pct < -8.0: score += 8
+            elif -5.0 < bias_pct <= -3.0: score += 5
+
+            # 🎯 判斷趨勢狀態 (Trend Status)
+            if item['bias6'] > 0:
+                trend_status = "⭐ 底部起漲 (乖離6已翻正)"
+            else:
+                trend_status = "⏳ 築底量縮中 (乖離6仍為負)"
+                
+            # 計算建議進場價 (取今日收盤與季線的折衷，或是保守取今日收盤往下抓 1%)
+            entry_price = round(item['price'] * 0.99, 2)
+
+            # 🏆 封裝入庫
+            final_list.append({
+                "date": datetime.now(timezone.utc).strftime('%Y-%m-%d'),
+                "code": code,
+                "name": stock_meta[code]['name'],
+                "price": item['price'],
+                "score": score,
+                "trend_status": trend_status,
+                "entry_price": entry_price,
+                "bias60": f"{bias_pct:.1f}%",
+                "bias24": f"{item['bias24']*100:.1f}%", # 🔥 新增
+                "bias6": f"{item['bias6']*100:.1f}%",   # 🔥 新增
+                "vol_ratio": f"{item['vol_ratio']*100:.1f}%",
+                "eps": eps,
+                "yield_rate": yield_rate,
+                "buy_days": buy_days,
+                "tag": "左側黃金坑"
+            })
+            print(f"   🏆 入選: {code} | 分數: {score} | 狀態: {trend_status}")
+
+    # ---------------------------------------------------------
+    # 📦 結算與存檔
+    # ---------------------------------------------------------
+    if final_list:
+        # 依照「信心評分」由高到低排序 (最高分的排第一名！)
+        final_list.sort(key=lambda x: x['score'], reverse=True)
+        print(f"✅ 任務完成！共 {len(final_list)} 檔無敵黃金坑達標。")
+    else:
+        print("⚠️ 本次掃描無股票通過三層漏斗。")
+
+    with open('left_side_value.json', 'w', encoding='utf-8') as f:
+        json.dump(final_list, f, ensure_ascii=False, indent=4)
+        print("💾 已強制更新 left_side_value.json (確保 Line Bot 不會讀到過期資料)")
+
+   # ---------------------------------------------------------
+    # 📦 結算與獨立強制存檔 (修復「殭屍舊檔案」問題)
+    # ---------------------------------------------------------
+    if final_list:
+        # 依照負乖離率由深到淺排序
+        final_list.sort(key=lambda x: float(x['bias60'].replace('%', '')))
+        print(f"✅ 任務完成！共 {len(final_list)} 檔無敵黃金坑達標。")
+    else:
+        print("⚠️ 本次掃描無股票通過三層漏斗 (名單為空)。")
+
+    # 🔥 關鍵防呆：無論名單是不是空的，都「強制覆寫」檔案！
+    # 這樣一來，如果今天沒標的，檔案裡面就會是一個乾淨的空陣列 []
+    with open('left_side_value.json', 'w', encoding='utf-8') as f:
+        json.dump(final_list, f, ensure_ascii=False, indent=4)
+        print("💾 已強制更新 left_side_value.json (確保 Line Bot 不會讀到過期資料)")
+
+# ========================================================
+# ========================================================
+# 🔥 新增功能 4: 【金剛不壞：存股打折加碼雷達】(獨立產線)
+# ========================================================
+def generate_deposit_stocks():
+    print("\n🏦 [Task 4] 啟動存股打折加碼雷達 (均線乖離策略)...")
+    
+    # 📝 你專屬的存股口袋名單 (未來要新增/刪除，只需改這行！)
+    DEPOSIT_WATCHLIST = [
+    # --- 官股金控 (獲利穩健，存股首選) ---
+    "2886",  # 兆豐金
+    "2892",  # 第一金
+    "5880",  # 合庫金
+    "2880",  # 華南金
+
+    # --- 民營金控 (績效領先，股息亮眼) ---
+    "2881",  # 富邦金
+    "2882",  # 國泰金
+    "2883",  # 凱基金 (原開發金)
+    "2884",  # 玉山金
+    "2891",  # 中信金
+    "2890",  # 永豐金
+
+    # --- 電子龍頭 (產業趨勢，增值潛力) ---
+    "2330",  # 台積電
+    "2317",  # 鴻海
+
+    # --- 國民 ETF (分散風險，被動投資) ---
+    "0050",  # 元大台灣50
+    "0056",  # 元大高股息
+    "00878", # 國泰永續高股息
+    "00713", # 元大台灣高息低波
+    "00919", # 群益台灣精選高息
+    "00881", # 國泰台灣5G+
+    "006208",# 富邦台50
+    "0052",  # 富邦台灣科技
+    "00929"  # 復華台灣科技優息
+    ]
+
+    # 讀取對照表來抓中文名稱
+    stock_meta = {}
+    try:
+        with open('stock_list.json', 'r', encoding='utf-8') as f:
+            stock_meta = json.load(f)
+    except Exception as e:
+        print(f"⚠️ 讀取 stock_list.json 失敗: {e}")
+
+    deposit_list = []
+
+    for code in DEPOSIT_WATCHLIST:
+        print(f"🔍 分析存股標的: {code} ...", end=" ")
+        try:
+            # 判斷上市或上櫃 (ETF通常是上市 TW)
+            ticker_tw = yf.Ticker(f"{code}.TW")
+            df = ticker_tw.history(period="6mo") # 🔥 改為 6mo 以涵蓋季線
+            if df.empty:
+                ticker_two = yf.Ticker(f"{code}.TWO")
+                df = ticker_two.history(period="6mo")
+            
+            if len(df) < 60: # 🔥 確保資料夠算 60MA
+                print("資料不足，跳過。")
+                continue
+
+            closes = df['Close'].tolist()
+            close_today = closes[-1]
+            
+            # 🔥 計算多週期均線與乖離率
+            ma60 = sum(closes[-60:]) / 60
+            ma24 = sum(closes[-24:]) / 24
+            ma20 = sum(closes[-20:]) / 20
+            ma12 = sum(closes[-12:]) / 12
+            ma6 = sum(closes[-6:]) / 6
+            ma5 = sum(closes[-5:]) / 5
+            
+            bias_60 = (close_today - ma60) / ma60 * 100
+            bias_24 = (close_today - ma24) / ma24 * 100
+            bias_20 = (close_today - ma20) / ma20 * 100
+            bias_12 = (close_today - ma12) / ma12 * 100
+            bias_6 = (close_today - ma6) / ma6 * 100
+            bias_5 = (close_today - ma5) / ma5 * 100
+
+            # 🔥 抓取殖利率 (利用你寫好的函式)
+            eps, yield_rate, annual_div = get_finmind_fundamentals(code, close_today)
+
+            # 🧠 核心大腦：5 段式燈號與防飛刀邏輯
+            signal = ""
+            action = ""
+            anti_knife_warning = ""
+
+            if bias_20 > 8.0:
+                signal = "🔴 警示"
+                action = "【停扣 / 獲利了結】短線過熱，可先獲利了結，回檔後再接。"
+            elif 3.0 < bias_20 <= 8.0:
+                signal = "🟡 觀望"
+                action = "【維持現狀】穩定上漲中。"
+            elif -2.0 <= bias_20 <= 3.0:
+                signal = "🟢 平穩"
+                action = "【定期定額】價值平衡。"
+            elif -8.0 <= bias_20 < -2.0:
+                signal = "🛒 加碼"
+                action = "【小幅加碼】股價委屈，預估殖利率上升，可撿便宜。"
+            else: # bias_20 < -8.0
+                signal = "🚨 重壓"
+                action = "【大舉進場】市場恐慌超跌，長線買點浮現！"
+
+            # 🛡️ 防飛刀濾網 (當月線大跌，但週線還在跌，代表還沒見底)
+            if bias_20 < -2.0 and bias_5 < 0:
+                anti_knife_warning = " ⚠️ (跌勢未止，請分批慢接)"
+            elif bias_20 < -2.0 and bias_5 > 0:
+                anti_knife_warning = " ⭐ (週線翻正，跌勢止穩，建議加碼！)"
+
+            action += anti_knife_warning
+
+            meta_info = stock_meta.get(code, {})
+            meta_info = stock_meta.get(code, {})
+            deposit_list.append({
+                "code": code,
+                "name": meta_info.get('name', '未知名稱'),
+                "price": round(close_today, 2),
+                "bias_6": round(bias_6, 2),   
+                "bias_12": round(bias_12, 2), 
+                "bias_24": round(bias_24, 2), 
+                "bias_20": round(bias_20, 2),
+                "bias_60": round(bias_60, 2), 
+                "yield_rate": yield_rate,
+                # 🔥 新增這行：將分子(預估配息)與分母(今日收盤價)寫入 JSON，方便核對
+                "yield_formula": f"預估配息 {annual_div:.3f} / 股價 {close_today:.2f}",
+                "signal": signal,
+                "action": action
+            })
+            print(f"完成 (乖離 {bias_20:.2f}%, 殖利率 {yield_rate}%)")
+
+        except Exception as e:
+            print(f"錯誤: {e}")
+        time.sleep(0.1)
+
+    # 📦 結算與存檔
+    if deposit_list:
+        # 依照乖離率由低到高排序 (越便宜、跌越多的排越上面)
+        deposit_list.sort(key=lambda x: x['bias_20'])
+        
+        with open('deposit_stocks.json', 'w', encoding='utf-8') as f:
+            json.dump(deposit_list, f, ensure_ascii=False, indent=4)
+        print(f"💾 任務完成！已儲存 deposit_stocks.json (共分析 {len(deposit_list)} 檔存股)")
+
+# ========================================================
+# 最後，記得在你的 __main__ 區塊把這支程式加上去執行！
+if __name__ == "__main__":
+    update_stock_list_json()
+    generate_daily_recommendations()  # 右側產線
+    generate_left_side_value()        # 左側產線
+    generate_deposit_stocks()         # 🏦 存股產線 (新增這行！)
