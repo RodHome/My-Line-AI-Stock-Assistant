@@ -78,9 +78,9 @@ def get_day_trade_brokers():
         }
     }
 def fetch_twse_candidates():
-    # 🔥 這是你的 GitHub Raw 連結 (根據你提供的截圖 RodHome/line-bot-lab)
+    # 🔥 這是你的 GitHub Raw 連結 (根據你提供的截圖 RodHome/My-Line-AI-Stock-Assistant)
     # 如果你的檔案名稱不是 daily_recommendations.json，請修改這裡
-    GITHUB_RAW_URL = "https://raw.githubusercontent.com/RodHome/line-bot-lab/main/daily_recommendations.json"
+    GITHUB_RAW_URL = "https://raw.githubusercontent.com/RodHome/My-Line-AI-Stock-Assistant/main/daily_recommendations.json"
     
     # 加入簡單的快取機制 (避免短時間重複下載)
     global TWSE_CACHE
@@ -676,7 +676,7 @@ def handle_message(event):
     if msg == "左側":
         try:
             # 🔥 修改點：定義 GitHub 遠端連結
-            LEFT_SIDE_URL = "https://raw.githubusercontent.com/RodHome/line-bot-lab/main/left_side_value.json"
+            LEFT_SIDE_URL = "https://raw.githubusercontent.com/RodHome/My-Line-AI-Stock-Assistant/main/left_side_value.json"
             
             # 從遠端下載資料
             headers = {'Cache-Control': 'no-cache'} # 確保抓到最新，不被快取
@@ -773,7 +773,7 @@ def handle_message(event):
     if msg in ["金融股", "存股 ETF", "存股 龍頭"]:
         try:
             # 1. 改為 GitHub 遠端連結讀取
-            DEPOSIT_URL = "https://raw.githubusercontent.com/RodHome/line-bot-lab/main/deposit_stocks.json"
+            DEPOSIT_URL = "https://raw.githubusercontent.com/RodHome/My-Line-AI-Stock-Assistant/main/deposit_stocks.json"
             headers = {'Cache-Control': 'no-cache'}
             res = requests.get(DEPOSIT_URL, headers=headers, timeout=10)
             
