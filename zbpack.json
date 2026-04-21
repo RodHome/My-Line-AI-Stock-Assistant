@@ -1,7 +1,5 @@
-flask
-line-bot-sdk
-requests
-twstock
-gunicorn
-lxml
-yfinance
+{
+  "dependencies": {
+    "python": "3.9"
+  }
+}
