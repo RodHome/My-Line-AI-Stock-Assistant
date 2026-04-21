@@ -1,7 +1,0 @@
-flask
-line-bot-sdk
-requests
-twstock
-gunicorn
-lxml
-yfinance
