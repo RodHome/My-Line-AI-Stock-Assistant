@@ -323,6 +323,25 @@
         "first_entry_price": 20.4
     },
     {
+        "date": "2026-04-23",
+        "code": "8464",
+        "name": "億豐",
+        "price": 362.5,
+        "score": 85,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 358.88,
+        "bias60": "-3.4%",
+        "bias24": "1.6%",
+        "bias6": "-2.1%",
+        "vol_ratio": "73.8%",
+        "eps": 6.7,
+        "yield_rate": 0.0,
+        "buy_days": 5,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-04-23",
+        "first_entry_price": 362.5
+    },
+    {
         "date": "2026-04-10",
         "code": "6753",
         "name": "龍德造船",
