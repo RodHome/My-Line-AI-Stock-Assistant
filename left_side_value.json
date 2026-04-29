@@ -19,25 +19,6 @@
         "first_entry_price": 45.55
     },
     {
-        "date": "2026-04-28",
-        "code": "1514",
-        "name": "亞力",
-        "price": 110.5,
-        "score": 98,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 109.39,
-        "bias60": "-5.8%",
-        "bias24": "1.8%",
-        "bias6": "-1.5%",
-        "vol_ratio": "51.5%",
-        "eps": 1.11,
-        "yield_rate": 0.0,
-        "buy_days": 5,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-03-26",
-        "first_entry_price": 110.5
-    },
-    {
         "date": "2026-04-17",
         "code": "9939",
         "name": "宏全",
@@ -283,6 +264,25 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-04-15",
         "first_entry_price": 77.9
+    },
+    {
+        "date": "2026-04-29",
+        "code": "1514",
+        "name": "亞力",
+        "price": 111.0,
+        "score": 85,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 109.89,
+        "bias60": "-4.9%",
+        "bias24": "2.4%",
+        "bias6": "-0.6%",
+        "vol_ratio": "46.6%",
+        "eps": 1.11,
+        "yield_rate": 0.0,
+        "buy_days": 4,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-03-26",
+        "first_entry_price": 110.5
     },
     {
         "date": "2026-04-07",
@@ -1632,6 +1632,25 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-04-24",
         "first_entry_price": 36.35
+    },
+    {
+        "date": "2026-04-29",
+        "code": "1434",
+        "name": "福懋",
+        "price": 16.05,
+        "score": 70,
+        "trend_status": "⭐ 底部起漲 (乖離6已翻正)",
+        "entry_price": 15.89,
+        "bias60": "-4.9%",
+        "bias24": "-2.5%",
+        "bias6": "0.5%",
+        "vol_ratio": "61.2%",
+        "eps": 0.22,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-04-29",
+        "first_entry_price": 16.05
     },
     {
         "date": "2026-04-28",
