@@ -44,7 +44,7 @@
         "first_entry_price": 157.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2454",
         "name": "聯發科",
         "exchange": "上市",
@@ -242,15 +242,15 @@
         "first_entry_price": 822.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2449",
         "name": "京元電子",
         "exchange": "上市",
         "sector": "半導體業",
         "price": 302.5,
         "turnover": 21704401588.0,
-        "chips_display": "19982張 (60.4億)",
-        "buy_value": 6044555000.0,
+        "chips_display": "20009張 (60.5億)",
+        "buy_value": 6052722500.0,
         "yoy": 36.06,
         "tag": "外資大買",
         "debug_info": {
@@ -286,15 +286,15 @@
         "first_entry_price": 593.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2345",
         "name": "智邦",
         "exchange": "上市",
         "sector": "通信網路業",
         "price": 2280.0,
         "turnover": 8579401800.0,
-        "chips_display": "2547張 (58.1億)",
-        "buy_value": 5807160000.0,
+        "chips_display": "2545張 (58.0億)",
+        "buy_value": 5802600000.0,
         "yoy": 44.43,
         "tag": "外資大買",
         "debug_info": {
@@ -308,7 +308,7 @@
         "first_entry_price": 1610.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "8046",
         "name": "南電",
         "exchange": "上市",
@@ -330,7 +330,7 @@
         "first_entry_price": 569.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2313",
         "name": "華通",
         "exchange": "上市",
@@ -748,6 +748,28 @@
         "first_entry_price": 2610.0
     },
     {
+        "date": "2026-05-01",
+        "code": "6274",
+        "name": "台燿",
+        "exchange": "上櫃",
+        "sector": "電子零組件業",
+        "price": 1010.0,
+        "turnover": 3558941000.0,
+        "chips_display": "2494張 (25.2億)",
+        "buy_value": 2518940000.0,
+        "yoy": 72.34,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 3781706000,
+            "last_rev": 2194287000,
+            "this_period": "2026/3",
+            "last_period": "2025/3",
+            "formula": "(3781706000 - 2194287000) / 2194287000"
+        },
+        "first_entry_date": "2026-03-19",
+        "first_entry_price": 584.0
+    },
+    {
         "date": "2026-04-15",
         "code": "3481",
         "name": "群創",
@@ -790,28 +812,6 @@
         },
         "first_entry_date": "2026-04-13",
         "first_entry_price": 8560.0
-    },
-    {
-        "date": "2026-04-30",
-        "code": "6274",
-        "name": "台燿",
-        "exchange": "上櫃",
-        "sector": "電子零組件業",
-        "price": 975.0,
-        "turnover": 2386323000.0,
-        "chips_display": "2494張 (24.3億)",
-        "buy_value": 2431650000.0,
-        "yoy": 72.34,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 3781706000,
-            "last_rev": 2194287000,
-            "this_period": "2026/3",
-            "last_period": "2025/3",
-            "formula": "(3781706000 - 2194287000) / 2194287000"
-        },
-        "first_entry_date": "2026-03-19",
-        "first_entry_price": 584.0
     },
     {
         "date": "2026-03-29",
@@ -1100,7 +1100,7 @@
         "first_entry_price": 199.5
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2383",
         "name": "台光電",
         "exchange": "上市",
@@ -1144,7 +1144,7 @@
         "first_entry_price": 1100.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2455",
         "name": "全新",
         "exchange": "上市",
@@ -1166,7 +1166,7 @@
         "first_entry_price": 242.5
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "6187",
         "name": "萬潤",
         "exchange": "上櫃",
@@ -1804,7 +1804,7 @@
         "first_entry_price": 218.0
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "2049",
         "name": "上銀",
         "exchange": "上市",
@@ -1936,7 +1936,7 @@
         "first_entry_price": 83.9
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "6672",
         "name": "騰輝電子-KY",
         "exchange": "上市",
@@ -2046,7 +2046,7 @@
         "first_entry_price": 70.8
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "6531",
         "name": "愛普*",
         "exchange": "上市",
@@ -2090,7 +2090,7 @@
         "first_entry_price": 101.5
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "5443",
         "name": "均豪",
         "exchange": "上櫃",
@@ -2134,15 +2134,15 @@
         "first_entry_price": 462.5
     },
     {
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "code": "8996",
         "name": "高力",
         "exchange": "上市",
         "sector": "電機機械",
         "price": 1250.0,
         "turnover": 4398830330.0,
-        "chips_display": "262張 (3.3億)",
-        "buy_value": 327500000.0,
+        "chips_display": "260張 (3.2億)",
+        "buy_value": 325000000.0,
         "yoy": 205.35,
         "tag": "投信作帳",
         "debug_info": {
