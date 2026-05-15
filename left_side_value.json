@@ -190,25 +190,6 @@
         "first_entry_price": 80.1
     },
     {
-        "date": "2026-03-26",
-        "code": "2354",
-        "name": "鴻準",
-        "price": 52.7,
-        "score": 86,
-        "trend_status": "⭐ 底部起漲 (乖離6已翻正)",
-        "entry_price": 52.17,
-        "bias60": "-8.8%",
-        "bias24": "-4.4%",
-        "bias6": "0.6%",
-        "vol_ratio": "50.5%",
-        "eps": 0.64,
-        "yield_rate": 0.0,
-        "buy_days": 4,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-03-26",
-        "first_entry_price": 52.7
-    },
-    {
         "date": "2026-04-08",
         "code": "1522",
         "name": "堤維西",
@@ -2563,5 +2544,24 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-05-13",
         "first_entry_price": 23.05
+    },
+    {
+        "date": "2026-05-15",
+        "code": "5452",
+        "name": "佶優",
+        "price": 31.7,
+        "score": 65,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 31.38,
+        "bias60": "-4.0%",
+        "bias24": "-4.5%",
+        "bias6": "-3.3%",
+        "vol_ratio": "76.8%",
+        "eps": 0.01,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-05-15",
+        "first_entry_price": 31.7
     }
 ]
