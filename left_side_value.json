@@ -912,6 +912,25 @@
         "first_entry_price": 192.5
     },
     {
+        "date": "2026-06-11",
+        "code": "2633",
+        "name": "台灣高鐵",
+        "price": 25.35,
+        "score": 75,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 25.1,
+        "bias60": "-3.1%",
+        "bias24": "-1.0%",
+        "bias6": "-0.4%",
+        "vol_ratio": "38.7%",
+        "eps": 0.37,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-06-11",
+        "first_entry_price": 25.35
+    },
+    {
         "date": "2026-05-19",
         "code": "1808",
         "name": "潤隆",
@@ -1558,25 +1577,6 @@
         "first_entry_price": 60.6
     },
     {
-        "date": "2026-04-22",
-        "code": "6126",
-        "name": "信音",
-        "price": 32.85,
-        "score": 65,
-        "trend_status": "⭐ 底部起漲 (乖離6已翻正)",
-        "entry_price": 32.52,
-        "bias60": "-4.1%",
-        "bias24": "3.9%",
-        "bias6": "0.6%",
-        "vol_ratio": "77.9%",
-        "eps": 0.05,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-04-22",
-        "first_entry_price": 32.85
-    },
-    {
         "date": "2026-05-04",
         "code": "1712",
         "name": "興農",
@@ -1746,5 +1746,24 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-06-05",
         "first_entry_price": 84.1
+    },
+    {
+        "date": "2026-06-11",
+        "code": "6914",
+        "name": "阜爾運通",
+        "price": 141.5,
+        "score": 65,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 140.09,
+        "bias60": "-3.4%",
+        "bias24": "-0.6%",
+        "bias6": "0.0%",
+        "vol_ratio": "79.2%",
+        "eps": 2.34,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-06-11",
+        "first_entry_price": 141.5
     }
 ]
