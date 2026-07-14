@@ -437,6 +437,25 @@
         "first_entry_price": 57.4
     },
     {
+        "date": "2026-07-14",
+        "code": "7740",
+        "name": "熙特爾-創",
+        "price": 148.5,
+        "score": 83,
+        "trend_status": "⭐ 底部起漲 (乖離6已翻正)",
+        "entry_price": 147.01,
+        "bias60": "-11.5%",
+        "bias24": "-3.9%",
+        "bias6": "0.2%",
+        "vol_ratio": "62.6%",
+        "eps": 3.64,
+        "yield_rate": 0.0,
+        "buy_days": 4,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-07-10",
+        "first_entry_price": 147.5
+    },
+    {
         "date": "2026-07-03",
         "code": "2548",
         "name": "華固",
@@ -853,25 +872,6 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-07-10",
         "first_entry_price": 38.8
-    },
-    {
-        "date": "2026-07-10",
-        "code": "7740",
-        "name": "熙特爾-創",
-        "price": 147.5,
-        "score": 78,
-        "trend_status": "⭐ 底部起漲 (乖離6已翻正)",
-        "entry_price": 146.03,
-        "bias60": "-12.6%",
-        "bias24": "-5.5%",
-        "bias6": "0.6%",
-        "vol_ratio": "0.0%",
-        "eps": 3.64,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-07-10",
-        "first_entry_price": 147.5
     },
     {
         "date": "2026-07-13",
@@ -1596,25 +1596,6 @@
         "first_entry_price": 15.45
     },
     {
-        "date": "2026-05-20",
-        "code": "2646",
-        "name": "星宇航空",
-        "price": 20.2,
-        "score": 70,
-        "trend_status": "⭐ 底部起漲 (乖離6已翻正)",
-        "entry_price": 20.0,
-        "bias60": "-4.7%",
-        "bias24": "-1.2%",
-        "bias6": "0.2%",
-        "vol_ratio": "65.8%",
-        "eps": 0.3,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-05-20",
-        "first_entry_price": 20.2
-    },
-    {
         "date": "2026-06-02",
         "code": "3703",
         "name": "欣陸",
@@ -1860,25 +1841,6 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-05-04",
         "first_entry_price": 42.15
-    },
-    {
-        "date": "2026-05-20",
-        "code": "5306",
-        "name": "桂盟",
-        "price": 82.0,
-        "score": 65,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 81.18,
-        "bias60": "-4.5%",
-        "bias24": "-0.6%",
-        "bias6": "-1.4%",
-        "vol_ratio": "76.6%",
-        "eps": 1.79,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-05-19",
-        "first_entry_price": 82.7
     },
     {
         "date": "2026-06-01",
