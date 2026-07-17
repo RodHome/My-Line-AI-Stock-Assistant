@@ -969,6 +969,25 @@
         "first_entry_price": 212.5
     },
     {
+        "date": "2026-07-17",
+        "code": "7818",
+        "name": "溢泰實業",
+        "price": 68.6,
+        "score": 78,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 67.91,
+        "bias60": "-10.1%",
+        "bias24": "3.6%",
+        "bias6": "-1.7%",
+        "vol_ratio": "70.2%",
+        "eps": 0.88,
+        "yield_rate": 0.0,
+        "buy_days": 4,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-06-03",
+        "first_entry_price": 65.5
+    },
+    {
         "date": "2026-06-30",
         "code": "2417",
         "name": "圓剛",
@@ -1387,25 +1406,6 @@
         "first_entry_price": 51.8
     },
     {
-        "date": "2026-05-25",
-        "code": "8927",
-        "name": "北基",
-        "price": 18.9,
-        "score": 73,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 18.71,
-        "bias60": "-16.6%",
-        "bias24": "-9.4%",
-        "bias6": "-2.2%",
-        "vol_ratio": "66.8%",
-        "eps": 0.18,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-04-09",
-        "first_entry_price": 23.45
-    },
-    {
         "date": "2026-06-26",
         "code": "3029",
         "name": "零壹",
@@ -1499,6 +1499,25 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-07-07",
         "first_entry_price": 79.9
+    },
+    {
+        "date": "2026-07-17",
+        "code": "8936",
+        "name": "國統",
+        "price": 52.0,
+        "score": 73,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 51.48,
+        "bias60": "-4.1%",
+        "bias24": "-9.1%",
+        "bias6": "-4.4%",
+        "vol_ratio": "53.5%",
+        "eps": 0.99,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-07-17",
+        "first_entry_price": 52.0
     },
     {
         "date": "2026-07-07",
@@ -1615,25 +1634,6 @@
         "first_entry_price": 98.0
     },
     {
-        "date": "2026-05-25",
-        "code": "2889",
-        "name": "國票金",
-        "price": 14.55,
-        "score": 70,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 14.4,
-        "bias60": "-5.6%",
-        "bias24": "-0.8%",
-        "bias6": "-0.6%",
-        "vol_ratio": "78.1%",
-        "eps": 0.16,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-04-16",
-        "first_entry_price": 15.45
-    },
-    {
         "date": "2026-06-02",
         "code": "3703",
         "name": "欣陸",
@@ -1727,25 +1727,6 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-07-07",
         "first_entry_price": 66.2
-    },
-    {
-        "date": "2026-07-16",
-        "code": "7818",
-        "name": "溢泰實業",
-        "price": 69.7,
-        "score": 68,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 69.0,
-        "bias60": "-9.6%",
-        "bias24": "5.7%",
-        "bias6": "-0.5%",
-        "vol_ratio": "79.9%",
-        "eps": 0.88,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-06-03",
-        "first_entry_price": 65.5
     },
     {
         "date": "2026-07-06",
@@ -1974,5 +1955,24 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-06-25",
         "first_entry_price": 90.9
+    },
+    {
+        "date": "2026-07-17",
+        "code": "2010",
+        "name": "春源",
+        "price": 20.9,
+        "score": 65,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 20.69,
+        "bias60": "-3.8%",
+        "bias24": "-4.1%",
+        "bias6": "-1.5%",
+        "vol_ratio": "72.2%",
+        "eps": 0.57,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-07-17",
+        "first_entry_price": 20.9
     }
 ]
