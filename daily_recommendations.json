@@ -1,6 +1,6 @@
 [
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "3231",
         "name": "緯創",
         "exchange": "上市",
@@ -176,17 +176,17 @@
         "first_entry_price": 85.7
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "6669",
         "name": "緯穎",
         "exchange": "上市",
         "sector": "電腦及週邊設備業",
         "price": 5730.0,
         "turnover": 17270977515.0,
-        "chips_display": "1442張 (82.6億)",
-        "buy_value": 8262660000.0,
+        "chips_display": "1499張 (85.9億)",
+        "buy_value": 8589270000.0,
         "yoy": 29.79,
-        "tag": "外資大買",
+        "tag": "投信作帳",
         "debug_info": {
             "this_rev": 111371123000,
             "last_rev": 85808220000,
@@ -330,7 +330,7 @@
         "first_entry_price": 75.5
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2357",
         "name": "華碩",
         "exchange": "上市",
@@ -440,7 +440,7 @@
         "first_entry_price": 560.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2412",
         "name": "中華電",
         "exchange": "上市",
@@ -616,7 +616,7 @@
         "first_entry_price": 24.35
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2603",
         "name": "長榮",
         "exchange": "上市",
@@ -770,7 +770,7 @@
         "first_entry_price": 800.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2615",
         "name": "萬海",
         "exchange": "上市",
@@ -880,7 +880,7 @@
         "first_entry_price": 264.5
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "3034",
         "name": "聯詠",
         "exchange": "上市",
@@ -924,7 +924,7 @@
         "first_entry_price": 22.35
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "8112",
         "name": "至上",
         "exchange": "上市",
@@ -1078,7 +1078,7 @@
         "first_entry_price": 581.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2884",
         "name": "玉山金",
         "exchange": "上市",
@@ -1100,7 +1100,7 @@
         "first_entry_price": 33.45
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "4938",
         "name": "和碩",
         "exchange": "上市",
@@ -1496,7 +1496,7 @@
         "first_entry_price": 1605.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "4904",
         "name": "遠傳",
         "exchange": "上市",
@@ -1760,7 +1760,7 @@
         "first_entry_price": 134.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2356",
         "name": "英業達",
         "exchange": "上市",
@@ -2068,7 +2068,7 @@
         "first_entry_price": 292.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2609",
         "name": "陽明",
         "exchange": "上市",
@@ -2134,7 +2134,7 @@
         "first_entry_price": 255.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "1402",
         "name": "遠東新",
         "exchange": "上市",
@@ -2486,7 +2486,7 @@
         "first_entry_price": 410.0
     },
     {
-        "date": "2026-07-24",
+        "date": "2026-07-25",
         "code": "2324",
         "name": "仁寶",
         "exchange": "上市",
@@ -3188,28 +3188,6 @@
         },
         "first_entry_date": "2026-06-10",
         "first_entry_price": 45.45
-    },
-    {
-        "date": "2026-06-08",
-        "code": "5904",
-        "name": "寶雅",
-        "exchange": "上櫃",
-        "sector": "居家生活",
-        "price": 582.0,
-        "turnover": 396188000.0,
-        "chips_display": "541張 (3.1億)",
-        "buy_value": 314862000.0,
-        "yoy": 16.68,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 2247875000,
-            "last_rev": 1926559000,
-            "this_period": "2026/4",
-            "last_period": "2025/4",
-            "formula": "(2247875000 - 1926559000) / 1926559000"
-        },
-        "first_entry_date": "2026-06-08",
-        "first_entry_price": 582.0
     },
     {
         "date": "2026-06-28",
