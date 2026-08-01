@@ -132,7 +132,7 @@
         "first_entry_price": 2430.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "3231",
         "name": "緯創",
         "exchange": "上市",
@@ -198,7 +198,7 @@
         "first_entry_price": 244.5
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "2618",
         "name": "長榮航",
         "exchange": "上市",
@@ -286,7 +286,7 @@
         "first_entry_price": 569.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "2357",
         "name": "華碩",
         "exchange": "上市",
@@ -374,7 +374,7 @@
         "first_entry_price": 988.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "3293",
         "name": "鈊象",
         "exchange": "上櫃",
@@ -484,7 +484,7 @@
         "first_entry_price": 3520.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "3481",
         "name": "群創",
         "exchange": "上市",
@@ -548,6 +548,28 @@
         },
         "first_entry_date": "2026-06-24",
         "first_entry_price": 242.5
+    },
+    {
+        "date": "2026-08-01",
+        "code": "6669",
+        "name": "緯穎",
+        "exchange": "上市",
+        "sector": "電腦及週邊設備業",
+        "price": 5390.0,
+        "turnover": 7851495325.0,
+        "chips_display": "582張 (31.4億)",
+        "buy_value": 3136980000.0,
+        "yoy": 29.79,
+        "tag": "投信作帳",
+        "debug_info": {
+            "this_rev": 111371123000,
+            "last_rev": 85808220000,
+            "this_period": "2026/6",
+            "last_period": "2025/6",
+            "formula": "(111371123000 - 85808220000) / 85808220000"
+        },
+        "first_entry_date": "2026-04-17",
+        "first_entry_price": 3805.0
     },
     {
         "date": "2026-07-27",
@@ -704,28 +726,6 @@
         "first_entry_price": 426.5
     },
     {
-        "date": "2026-07-31",
-        "code": "6669",
-        "name": "緯穎",
-        "exchange": "上市",
-        "sector": "電腦及週邊設備業",
-        "price": 5390.0,
-        "turnover": 7851495325.0,
-        "chips_display": "464張 (25.0億)",
-        "buy_value": 2500960000.0,
-        "yoy": 29.79,
-        "tag": "投信作帳",
-        "debug_info": {
-            "this_rev": 111371123000,
-            "last_rev": 85808220000,
-            "this_period": "2026/6",
-            "last_period": "2025/6",
-            "formula": "(111371123000 - 85808220000) / 85808220000"
-        },
-        "first_entry_date": "2026-04-17",
-        "first_entry_price": 3805.0
-    },
-    {
         "date": "2026-07-27",
         "code": "3017",
         "name": "奇鋐",
@@ -836,7 +836,29 @@
         "first_entry_price": 8560.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
+        "code": "4958",
+        "name": "臻鼎-KY",
+        "exchange": "上市",
+        "sector": "電子零組件業",
+        "price": 413.5,
+        "turnover": 6408729818.0,
+        "chips_display": "5595張 (23.1億)",
+        "buy_value": 2313532500.0,
+        "yoy": 32.83,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 17033197000,
+            "last_rev": 12823095000,
+            "this_period": "2026/6",
+            "last_period": "2025/6",
+            "formula": "(17033197000 - 12823095000) / 12823095000"
+        },
+        "first_entry_date": "2026-05-13",
+        "first_entry_price": 442.5
+    },
+    {
+        "date": "2026-08-01",
         "code": "3034",
         "name": "聯詠",
         "exchange": "上市",
@@ -1056,29 +1078,7 @@
         "first_entry_price": 226.5
     },
     {
-        "date": "2026-07-31",
-        "code": "4958",
-        "name": "臻鼎-KY",
-        "exchange": "上市",
-        "sector": "電子零組件業",
-        "price": 413.5,
-        "turnover": 6408729818.0,
-        "chips_display": "4412張 (18.2億)",
-        "buy_value": 1824362000.0,
-        "yoy": 32.83,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 17033197000,
-            "last_rev": 12823095000,
-            "this_period": "2026/6",
-            "last_period": "2025/6",
-            "formula": "(17033197000 - 12823095000) / 12823095000"
-        },
-        "first_entry_date": "2026-05-13",
-        "first_entry_price": 442.5
-    },
-    {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "2885",
         "name": "元大金",
         "exchange": "上市",
@@ -1210,7 +1210,7 @@
         "first_entry_price": 1605.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "2887",
         "name": "台新新光金",
         "exchange": "上市",
@@ -1276,7 +1276,7 @@
         "first_entry_price": 93.5
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "3260",
         "name": "威剛",
         "exchange": "上櫃",
@@ -1804,7 +1804,7 @@
         "first_entry_price": 180.5
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "3105",
         "name": "穩懋",
         "exchange": "上櫃",
@@ -1958,7 +1958,7 @@
         "first_entry_price": 2650.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "6531",
         "name": "愛普*",
         "exchange": "上市",
@@ -2222,7 +2222,7 @@
         "first_entry_price": 344.0
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "3665",
         "name": "貿聯-KY",
         "exchange": "上市",
@@ -2464,7 +2464,7 @@
         "first_entry_price": 37.7
     },
     {
-        "date": "2026-07-31",
+        "date": "2026-08-01",
         "code": "2409",
         "name": "友達",
         "exchange": "上市",
