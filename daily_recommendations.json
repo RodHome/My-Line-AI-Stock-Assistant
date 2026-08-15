@@ -44,11 +44,11 @@
         "first_entry_price": 1950.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "6770",
-        "name": "未知名稱",
+        "name": "力積電",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "半導體業",
         "price": 78.4,
         "turnover": 41709109800.0,
         "chips_display": "316430張 (248.1億)",
@@ -110,11 +110,11 @@
         "first_entry_price": 207.5
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "3017",
-        "name": "未知名稱",
+        "name": "奇鋐",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "散熱",
         "price": 3235.0,
         "turnover": 23876896640.0,
         "chips_display": "4354張 (140.9億)",
@@ -132,11 +132,11 @@
         "first_entry_price": 2015.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "3037",
-        "name": "未知名稱",
+        "name": "欣興",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "電子零組件業",
         "price": 1020.0,
         "turnover": 9773002661.0,
         "chips_display": "11994張 (122.3億)",
@@ -154,11 +154,11 @@
         "first_entry_price": 581.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2357",
-        "name": "未知名稱",
+        "name": "華碩",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "電腦及週邊設備業",
         "price": 996.0,
         "turnover": 16191877732.0,
         "chips_display": "11373張 (113.3億)",
@@ -198,11 +198,11 @@
         "first_entry_price": 302.5
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2344",
-        "name": "未知名稱",
+        "name": "華邦電",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "半導體業",
         "price": 183.5,
         "turnover": 44751045772.0,
         "chips_display": "57835張 (106.1億)",
@@ -242,15 +242,15 @@
         "first_entry_price": 613.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2383",
-        "name": "未知名稱",
+        "name": "台光電",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "電子零組件業",
         "price": 6165.0,
         "turnover": 18016995640.0,
-        "chips_display": "1495張 (92.2億)",
-        "buy_value": 9216675000.0,
+        "chips_display": "1561張 (96.2億)",
+        "buy_value": 9623565000.0,
         "yoy": 129.4,
         "tag": "外資大買",
         "debug_info": {
@@ -286,11 +286,11 @@
         "first_entry_price": 143.5
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2376",
-        "name": "未知名稱",
+        "name": "技嘉",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "板卡",
         "price": 397.5,
         "turnover": 5656736248.0,
         "chips_display": "18635張 (74.1億)",
@@ -374,11 +374,11 @@
         "first_entry_price": 217.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2337",
-        "name": "未知名稱",
+        "name": "旺宏",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "半導體業",
         "price": 137.0,
         "turnover": 13173158770.0,
         "chips_display": "46796張 (64.1億)",
@@ -418,11 +418,11 @@
         "first_entry_price": 3805.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "3661",
-        "name": "未知名稱",
+        "name": "世芯-KY",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "半導體業",
         "price": 4210.0,
         "turnover": 15615818970.0,
         "chips_display": "1474張 (62.1億)",
@@ -462,11 +462,11 @@
         "first_entry_price": 93.1
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2603",
-        "name": "未知名稱",
+        "name": "長榮",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "航運",
         "price": 219.0,
         "turnover": 2921557165.0,
         "chips_display": "25142張 (55.1億)",
@@ -638,11 +638,11 @@
         "first_entry_price": 569.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2324",
-        "name": "未知名稱",
+        "name": "仁寶",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "電腦及週邊設備業",
         "price": 43.2,
         "turnover": 17309022890.0,
         "chips_display": "108029張 (46.7億)",
@@ -660,11 +660,11 @@
         "first_entry_price": 36.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "6446",
-        "name": "未知名稱",
+        "name": "藥華藥",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "生技醫療業",
         "price": 1500.0,
         "turnover": 5981875155.0,
         "chips_display": "3021張 (45.3億)",
@@ -770,11 +770,11 @@
         "first_entry_price": 1610.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2356",
-        "name": "未知名稱",
+        "name": "英業達",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "電腦及週邊設備業",
         "price": 69.9,
         "turnover": 4231657308.0,
         "chips_display": "55340張 (38.7億)",
@@ -836,11 +836,11 @@
         "first_entry_price": 1880.0
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "2887",
-        "name": "未知名稱",
+        "name": "台新新光金",
         "exchange": "上市",
-        "sector": "未知產業",
+        "sector": "金融保險業",
         "price": 37.75,
         "turnover": 3772879134.0,
         "chips_display": "92994張 (35.1億)",
@@ -858,7 +858,7 @@
         "first_entry_price": 24.35
     },
     {
-        "date": "2026-08-14",
+        "date": "2026-08-15",
         "code": "6187",
         "name": "萬潤",
         "exchange": "上櫃",
