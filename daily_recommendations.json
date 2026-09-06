@@ -66,11 +66,11 @@
         "first_entry_price": 226.5
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3231",
-        "name": "緯創",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "AI伺服器",
+        "sector": "未知產業",
         "price": 198.0,
         "turnover": 16291830429.0,
         "chips_display": "57305張 (113.5億)",
@@ -176,11 +176,11 @@
         "first_entry_price": 85.7
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3324",
-        "name": "雙鴻",
+        "name": "未知名稱",
         "exchange": "上櫃",
-        "sector": "散熱",
+        "sector": "未知產業",
         "price": 1485.0,
         "turnover": 3961785000.0,
         "chips_display": "6556張 (97.4億)",
@@ -198,11 +198,11 @@
         "first_entry_price": 943.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2382",
-        "name": "廣達",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "AI伺服器",
+        "sector": "未知產業",
         "price": 345.0,
         "turnover": 7095877034.0,
         "chips_display": "25280張 (87.2億)",
@@ -264,11 +264,11 @@
         "first_entry_price": 410.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2357",
-        "name": "華碩",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "電腦及週邊設備業",
+        "sector": "未知產業",
         "price": 1025.0,
         "turnover": 5168660572.0,
         "chips_display": "7732張 (79.3億)",
@@ -308,23 +308,23 @@
         "first_entry_price": 581.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2317",
-        "name": "鴻海",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "AI伺服器",
+        "sector": "未知產業",
         "price": 256.0,
         "turnover": 12576410974.0,
         "chips_display": "27254張 (69.8億)",
         "buy_value": 6977024000.0,
-        "yoy": 54.19,
+        "yoy": 51.98,
         "tag": "外資大買",
         "debug_info": {
-            "this_rev": 946512543000,
-            "last_rev": 613864601000,
-            "this_period": "2026/7",
-            "last_period": "2025/7",
-            "formula": "(946512543000 - 613864601000) / 613864601000"
+            "this_rev": 921766023000,
+            "last_rev": 606512275000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(921766023000 - 606512275000) / 606512275000"
         },
         "first_entry_date": "2026-04-14",
         "first_entry_price": 207.5
@@ -374,11 +374,11 @@
         "first_entry_price": 70.6
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2455",
-        "name": "全新",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "通信網路業",
+        "sector": "未知產業",
         "price": 528.0,
         "turnover": 12429070854.0,
         "chips_display": "12411張 (65.5億)",
@@ -396,11 +396,11 @@
         "first_entry_price": 242.5
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3017",
-        "name": "奇鋐",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "散熱",
+        "sector": "未知產業",
         "price": 3570.0,
         "turnover": 15836041480.0,
         "chips_display": "1773張 (63.3億)",
@@ -792,11 +792,11 @@
         "first_entry_price": 409.5
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2454",
-        "name": "聯發科",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "IC設計",
+        "sector": "未知產業",
         "price": 4415.0,
         "turnover": 39901626245.0,
         "chips_display": "842張 (37.2億)",
@@ -1144,11 +1144,11 @@
         "first_entry_price": 95.4
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3081",
-        "name": "聯亞",
+        "name": "未知名稱",
         "exchange": "上櫃",
-        "sector": "通信網路業",
+        "sector": "未知產業",
         "price": 3170.0,
         "turnover": 16505790000.0,
         "chips_display": "857張 (27.2億)",
@@ -1166,11 +1166,11 @@
         "first_entry_price": 2535.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3661",
-        "name": "世芯-KY",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "半導體業",
+        "sector": "未知產業",
         "price": 4220.0,
         "turnover": 7372893575.0,
         "chips_display": "588張 (24.8億)",
@@ -1254,11 +1254,11 @@
         "first_entry_price": 297.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2492",
-        "name": "華新科",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "電子零組件業",
+        "sector": "未知產業",
         "price": 298.5,
         "turnover": 8064570394.0,
         "chips_display": "8025張 (24.0億)",
@@ -1496,11 +1496,11 @@
         "first_entry_price": 426.5
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "2324",
-        "name": "仁寶",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "電腦及週邊設備業",
+        "sector": "未知產業",
         "price": 41.6,
         "turnover": 5781097796.0,
         "chips_display": "44266張 (18.4億)",
@@ -1760,11 +1760,11 @@
         "first_entry_price": 157.5
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "6271",
-        "name": "同欣電",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "半導體業",
+        "sector": "未知產業",
         "price": 237.0,
         "turnover": 3622880650.0,
         "chips_display": "5941張 (14.1億)",
@@ -1804,11 +1804,11 @@
         "first_entry_price": 642.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3653",
-        "name": "健策",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "電子零組件業",
+        "sector": "未知產業",
         "price": 5875.0,
         "turnover": 5504530385.0,
         "chips_display": "214張 (12.6億)",
@@ -2508,11 +2508,11 @@
         "first_entry_price": 500.0
     },
     {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "code": "3026",
-        "name": "禾伸堂",
+        "name": "未知名稱",
         "exchange": "上市",
-        "sector": "電子零組件業",
+        "sector": "未知產業",
         "price": 701.0,
         "turnover": 5091207225.0,
         "chips_display": "671張 (4.7億)",
