@@ -7,90 +7,15 @@ import time
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 import yfinance as yf
-import math   
 
-# 🔥 雙鑰匙負載平衡系統
-# 統一台灣時區基準
-TW_TZ = timezone(timedelta(hours=8))
+# 🔥 雙鑰匙負載平衡系統：合併訪客與會員額度 (總計 900次/小時)
+GUEST_TOKEN = "" # 訪客鑰匙 (消耗 IP 免費 300 次)
+VIP_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNi0wMy0xOCAxOToyODoyNCIsInVzZXJfaWQiOiJyb2Q3NDEwMDEyIiwiZW1haWwiOiJyb2Q3NDEwMDFAZ21haWwuY29tIiwiaXAiOiIxMjIuMTE2LjE1OS4xMzQifQ.qmaLCfxjbwXRYo8TwFZKboTfmAADIMs0CWw-oPUJU4g"
 
-# 統一與 app.py 共用相同的環境變數
-FINMIND_TOKEN = os.environ.get("FINMIND_TOKEN", "")
-
-# 🔍 Token 讀取驗證
-if not FINMIND_TOKEN:
-    print("❌ [Token 檢查失敗] 系統未取得 FINMIND_TOKEN，請檢查 GitHub Secrets 或環境變數設定！")
-else:
-    masked = FINMIND_TOKEN[:6] + "..." + FINMIND_TOKEN[-4:] if len(FINMIND_TOKEN) > 10 else "***"
-    print(f"🔑 [Token 檢查成功] 已順利載入 FINMIND_TOKEN ({masked})，長度: {len(FINMIND_TOKEN)}")
-
-def clean_nan(data):
-    if isinstance(data, list):
-        return [clean_nan(item) for item in data]
-    elif isinstance(data, dict):
-        return {k: clean_nan(v) for k, v in data.items()}
-    elif isinstance(data, float) and math.isnan(data):
-        return None  
-    else:
-        return data
-
-def calculate_rsi(prices, period=14):
-    if len(prices) < period + 1: return 50
-    gains = []; losses = []
-    for i in range(1, len(prices)):
-        change = prices[i] - prices[i-1]
-        gains.append(max(0, change))
-        losses.append(max(0, -change))
-    avg_gain = sum(gains[-period:]) / period
-    avg_loss = sum(losses[-period:]) / period
-    if avg_loss == 0: return 100
-    rs = avg_gain / avg_loss
-    return round(100 - (100 / (1 + rs)), 1)
-
-# ==========================================
-# 🆕 雙引擎資金投入優先度 (S/A/B/C) 判定邏輯
-# ==========================================
-def get_right_capital_rank(price, ma5, ma20, high_20d, vol_ratio, bias20, is_break_reversal=False):
-    """右側動能：突破與趨勢判定 (已修正避雷針與破線誤判)"""
-    # 1. 致命防線：跌破生命線(20MA) 或 出現"真正"的爆量避雷針，才打入 C 級
-    if price < ma20 or is_break_reversal:
-        return "C"
-        
-    # 2. 短線防護：單日量比大於 3.0 倍 (隔日沖) 或 跌破 5MA (量縮回測)，歸類為 B 級觀望
-    if vol_ratio > 3.0 or price < ma5:
-        return "B"
-    
-    is_trend_up = (price > ma5) and (price > ma20) and (ma5 > ma20)
-    is_breakout = (price >= high_20d)
-    is_near_breakout = (price >= high_20d * 0.97) 
-    
-    # 3. 🎯 客觀狀態分級機制
-    if is_trend_up and is_breakout and 1.5 <= vol_ratio <= 3.0 and bias20 < 15.0:
-        return "S" # 🥇 主力帶量突破
-    elif is_trend_up and (is_breakout or is_near_breakout) and bias20 < 25.0:
-        return "A" # 🥈 法人推升波段
-    elif bias20 < 35.0:
-        return "B" # 🟡 震盪整理/回測
-    else:
-        return "C" # 🚫 主力出貨破線
-
-def get_left_capital_rank(is_above_5ma, is_strong_reversal, is_anti_knife, is_breaking_low, bias60, rsi_yest, rsi_today, buy_days_5d, eps):
-    """左側潛伏：防守與反轉判定"""
-    if eps is not None and eps < 0 and buy_days_5d < 4:
-        return "C" # 虧損且無大人照顧，危險
-    
-    if is_above_5ma and is_strong_reversal and (rsi_today > rsi_yest) and buy_days_5d >= 3:
-        return "S" # 站上5MA、強力反轉、RSI向上、籌碼集中
-    if not is_above_5ma and is_anti_knife and buy_days_5d >= 3:
-        return "A" # 未過5MA，但出防守K線與籌碼進駐
-    if not is_above_5ma and is_breaking_low and not is_anti_knife:
-        if bias60 < -8.0: 
-            return "B" # 嚴重超跌但無防守，嚴格觀望
-        return "C" # 破底無支撐
-    
-    return "A" if is_above_5ma else "B"
-
+# 🔥 [新增模組] 長線記憶融合大腦 (30天回測水庫與初始價格鎖定)
 def merge_history_data(today_data, file_name, sort_key):
     history_dict = {}
+    # 1. 嘗試讀取現有的舊檔案
     if os.path.exists(file_name):
         try:
             with open(file_name, 'r', encoding='utf-8') as f:
@@ -102,21 +27,15 @@ def merge_history_data(today_data, file_name, sort_key):
         except Exception as e:
             print(f"⚠️ 讀取 {file_name} 歷史資料失敗: {e}")
 
-    today_date_str = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d')
+    # 2. 將今日新資料與歷史資料融合 (Upsert)
+    today_date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     for item in today_data:
         code = item['code']
-        item_date = item.get('date', today_date_str) 
+        item_date = item.get('date', today_date_str)
         
-        raw_first_price = history_dict.get(code, {}).get('first_entry_price')
-        try:
-            if raw_first_price is None or str(raw_first_price).lower() == 'null' or float(raw_first_price) <= 0:
-                first_price = float(item.get('price', 0.0))
-            else:
-                first_price = float(raw_first_price)
-        except (ValueError, TypeError):
-            first_price = float(item.get('price', 0.0))
-            
+        # 鎖定初次入榜日與初次價格
         first_date = history_dict.get(code, {}).get('first_entry_date', item_date)
+        first_price = history_dict.get(code, {}).get('first_entry_price', item.get('price', 0.0))
         
         new_item = item.copy()
         new_item['first_entry_date'] = first_date
@@ -124,6 +43,7 @@ def merge_history_data(today_data, file_name, sort_key):
         
         history_dict[code] = new_item
 
+    # 3. 過濾出最近 30 個交易日的資料
     all_dates = set(v.get('date') for v in history_dict.values() if v.get('date'))
     allowed_dates = sorted(list(all_dates), reverse=True)[:30]
     
@@ -133,14 +53,13 @@ def merge_history_data(today_data, file_name, sort_key):
     return final_list
 
 def get_finmind_chips(code):
+    """查詢近 5 日法人買超張數 (抗長假 30 天版)"""
     start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     url = "https://api.finmindtrade.com/api/v4/data"
     try:
-        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=10)
-        if res.status_code != 200: return None, None
+        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=10)
         data = res.json().get('data', [])
-        if not data: return None, None
-        
+        if not data: return 0, 0
         unique_dates = sorted(list(set([d['date'] for d in data])), reverse=True)
         target_dates = unique_dates[:5]
         acc_f = 0; acc_t = 0
@@ -150,31 +69,36 @@ def get_finmind_chips(code):
                 if row['name'] == 'Foreign_Investor': acc_f += val
                 elif row['name'] == 'Investment_Trust': acc_t += val
         return acc_f, acc_t
-    except: return None, None
+    except: return 0, 0
 
 def get_finmind_revenue_yoy(code):
+    """查詢營收，自動對齊去年同月，並回傳開發者查核數據"""
+    # 抓取過去 480 天，確保涵蓋 16 個月以便對齊去年同期
     start = (datetime.now() - timedelta(days=480)).strftime('%Y-%m-%d')
     url = "https://api.finmindtrade.com/api/v4/data"
+    # 預設回傳格式 (現在改為回傳字典)
     default_res = {
-        "yoy": None, 
+        "yoy": 0.0, 
         "debug_info": {"status": "No Data", "this_rev": 0, "last_rev": 0, "this_period": "N/A", "last_period": "N/A"}
     }
     
     try:
-        res = requests.get(url, params={"dataset": "TaiwanStockMonthRevenue", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=10)
-        if res.status_code != 200: return default_res
+        res = requests.get(url, params={"dataset": "TaiwanStockMonthRevenue", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=10)
         data = res.json().get('data', [])
         
         if not data: return default_res
             
+        # 依日期由新到舊排序 (年、月雙重排序，徹底防呆)
         data.sort(key=lambda x: (x['revenue_year'], x['revenue_month']), reverse=True)
         
+        # 嘗試從最新一筆開始，往回找去年同月
         for i in range(len(data)):
             target = data[i]
             t_rev = target['revenue']
             t_y = target['revenue_year']
             t_m = target['revenue_month']
             
+            # 尋找去年同月 (年份 -1 且 月份相同)
             last_year_data = next((row for row in data if row['revenue_year'] == t_y - 1 and row['revenue_month'] == t_m), None)
             
             if last_year_data:
@@ -196,20 +120,20 @@ def get_finmind_revenue_yoy(code):
     except Exception as e:
         default_res["debug_info"]["status"] = f"Error: {str(e)}"
         return default_res
-
+#==========3/17==================================
+# 🔥 [為左側雷達新增] 專門抓取近 N 日的法人買賣超陣列
 def get_finmind_chips_history(code, days=3):
     start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     url = "https://api.finmindtrade.com/api/v4/data"
     history = []
     try:
-        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=10)
-        if res.status_code != 200: return None
+        res = requests.get(url, params={"dataset": "TaiwanStockInstitutionalInvestorsBuySell", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=10)
         data = res.json().get('data', [])
-        if not data: return None
+        if not data: return [0]*days
         
         unique_dates = sorted(list(set([d['date'] for d in data])), reverse=True)
         target_dates = unique_dates[:days]
-        target_dates.reverse() 
+        target_dates.reverse() # 把舊的排前面，新的排後面
         
         for t_date in target_dates:
             daily_net = 0
@@ -220,31 +144,38 @@ def get_finmind_chips_history(code, days=3):
                         daily_net += val
             history.append(daily_net)
         return history
-    except: return None
+    except: return [0]*days
 
+# 🔥 [為左側/存股雷達新增] 查詢單季 EPS 與 殖利率 (動態頻率推算版)
+# ==========================================
+# ==========================================
+# 區塊：FinMind 基本面與殖利率查詢 (雙軌分流版)
+# 用途：EPS 扣訪客額度，殖利率扣 VIP 額度，極大化 API 使用率
+# ==========================================
 def get_finmind_fundamentals(code, current_price, fetch_yield=True):
-    eps_latest = None
+    eps_latest = 0.0
     yield_rate = 0.0
     annual_div = 0.0
     
     start = (datetime.now() - timedelta(days=800)).strftime('%Y-%m-%d')
     url = "https://api.finmindtrade.com/api/v4/data"
     
+    # 1. 抓取最新 EPS (🔥 分流：消耗 GUEST_TOKEN 免費額度)
     try:
-        res = requests.get(url, params={"dataset": "TaiwanStockFinancialStatements", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=5)
+        res = requests.get(url, params={"dataset": "TaiwanStockFinancialStatements", "data_id": code, "start_date": start, "token": GUEST_TOKEN}, timeout=5)
         if res.status_code == 200:
             data = res.json().get('data', [])
             eps_data = [d for d in data if d['type'] == 'EPS']
-            if eps_data:
-                eps_data.sort(key=lambda x: x.get('date', ''))
-                eps_latest = float(eps_data[-1].get('value', 0))
+            if eps_data: eps_latest = float(eps_data[-1].get('value', 0))
     except: pass
     
+    # 🌟 額度防護機制：Task 3 到此為止，回傳 3 個變數
     if not fetch_yield:
         return eps_latest, yield_rate, annual_div
 
+    # 2. 抓取殖利率 (🔥 分流：只有 Task 4 會走到這，消耗 VIP_TOKEN 額度)
     try:
-        res_div = requests.get(url, params={"dataset": "TaiwanStockDividend", "data_id": code, "start_date": start, "token": FINMIND_TOKEN}, timeout=10)
+        res_div = requests.get(url, params={"dataset": "TaiwanStockDividend", "data_id": code, "start_date": start, "token": VIP_TOKEN}, timeout=10)
         if res_div.status_code == 200:
             data_div = res_div.json().get('data', [])
             if data_div:
@@ -259,231 +190,32 @@ def get_finmind_fundamentals(code, current_price, fetch_yield=True):
                         valid_cash_records.append({'date': d.get('date'), 'cash': total})
                 
                 if valid_cash_records:
-                    is_etf = str(code).startswith('00')
                     valid_cash_records = sorted(valid_cash_records, key=lambda x: x['date'], reverse=True)
+                    latest_cash = valid_cash_records[0]['cash']
+                    multiplier = 1
+                    if len(valid_cash_records) >= 2:
+                        d_new = datetime.strptime(valid_cash_records[0]['date'], '%Y-%m-%d')
+                        d_old = datetime.strptime(valid_cash_records[1]['date'], '%Y-%m-%d')
+                        days_diff = (d_new - d_old).days
+                        if days_diff <= 45: multiplier = 12
+                        elif days_diff <= 120: multiplier = 4
+                        elif days_diff <= 240: multiplier = 2
                     
-                    if is_etf:
-                        latest_cash = valid_cash_records[0]['cash']
-                        multiplier = 1
-                        if len(valid_cash_records) >= 2:
-                            d_new = datetime.strptime(valid_cash_records[0]['date'], '%Y-%m-%d')
-                            d_old = datetime.strptime(valid_cash_records[1]['date'], '%Y-%m-%d')
-                            days_diff = (d_new - d_old).days
-                            if days_diff <= 45: multiplier = 12
-                            elif days_diff <= 120: multiplier = 4
-                            elif days_diff <= 240: multiplier = 2
-                        annual_div = round(latest_cash * multiplier, 3)
-                    else:
-                        target_year = data_div[-1].get('year') or valid_cash_records[0]['date'][:4]
-                        same_year_records = [
-                            float(d.get('CashEarningsDistribution') or 0) + 
-                            float(d.get('CashStatutorySurplus') or 0) + 
-                            float(d.get('CashCapitalReserve') or 0)
-                            for d in data_div if str(d.get('year', '') or d.get('date', '')[:4]) == str(target_year)
-                        ]
-                        annual_div = round(sum(same_year_records), 3) if same_year_records else round(valid_cash_records[0]['cash'], 3)
-                    
+                    # 🔥 計算分子並回傳
+                    annual_div = round(latest_cash * multiplier, 3)
                     if current_price > 0:
                         yield_rate = round((annual_div / current_price) * 100, 2)
     except: pass
         
     return eps_latest, yield_rate, annual_div
+#==========3/17==================================
+# ========================================================
 
-def get_latest_dividend_info(code, current_price):
-    is_etf = str(code).startswith('00')
-    tw_now = datetime.now(timezone.utc) + timedelta(hours=8)
-    today_str = tw_now.strftime('%Y-%m-%d')
-    
-    yield_rate = 0.0
-    formula = "⚠️ 已除息或尚未宣告" 
-    ex_date_for_json = None
-    is_upcoming = False
-    
-    start_date = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
-    url = "https://api.finmindtrade.com/api/v4/data"
-    
-    try:
-        res = requests.get(url, params={"dataset": "TaiwanStockDividend", "data_id": code, "start_date": start_date, "token": FINMIND_TOKEN}, timeout=10)
-        data = res.json().get('data', [])
-        if not data:
-            return yield_rate, formula, ex_date_for_json, is_upcoming
-            
-        data.sort(key=lambda x: x.get('date', ''), reverse=True)
-        latest_record = data[0]
-        raw_ex_date = latest_record.get('CashExDividendTradingDate') or latest_record.get('StockExDividendTradingDate')
-        
-        if raw_ex_date and raw_ex_date >= today_str:
-            ex_date_for_json = raw_ex_date
-            is_upcoming = True
-        else:
-            return yield_rate, formula, ex_date_for_json, is_upcoming
-
-        if current_price > 0:
-            if is_etf:
-                total_cash = sum([float(d.get('CashEarningsDistribution', 0)) for d in data])
-                if total_cash > 0:
-                    yield_rate = round((total_cash / current_price) * 100, 2)
-                    formula = f"ETF推算(近一年): {round(total_cash, 3)} / 現價 {current_price}"
-            else:
-                target_year = latest_record.get('year')
-                if target_year:
-                    total_cash = sum([
-                        float(d.get('CashEarningsDistribution') or 0) + 
-                        float(d.get('CashStatutorySurplus') or 0) + 
-                        float(d.get('CashCapitalReserve') or 0)
-                        for d in data if str(d.get('year', '')) == str(target_year)
-                    ])
-                    if total_cash > 0:
-                        yield_rate = round((total_cash / current_price) * 100, 2)
-                        formula = f"最新宣告({target_year}): {round(total_cash, 3)} / 現價 {current_price}"
-
-        return yield_rate, formula, ex_date_for_json, is_upcoming
-
-    except Exception as e:
-        return 0.0, f"股利運算錯誤: {e}", None, False
-
-def sync_historical_data(file_name, today_codes, strategy_type, taiwan_50_list=None):
-    updated_history = []
-    print(f"🔄 正在同步 {file_name} 歷史標的最新現價與資訊...")
-    
-    stock_meta = {}
-    try:
-        if os.path.exists('stock_list.json'):
-            with open('stock_list.json', 'r', encoding='utf-8') as f:
-                stock_meta = json.load(f)
-    except Exception as e:
-        print(f"⚠️ 同步歷史資料時讀取 stock_list.json 失敗: {e}")
-    
-    if not os.path.exists(file_name):
-        return updated_history
-
-    try:
-        with open(file_name, 'r', encoding='utf-8') as f:
-            history_stocks = json.load(f)
-        
-        for old_s in history_stocks:
-            code = old_s['code']
-            if code not in today_codes:
-                try:
-                    exchange_type = old_s.get('exchange', '上市')
-                    suffix = ".TWO" if exchange_type == '上櫃' else ".TW"
-                    
-                    period_val = "2mo" if strategy_type == 'RIGHT' else "3mo"
-                    ticker = yf.Ticker(f"{code}{suffix}")
-                    hist = ticker.history(period=period_val)
-
-                    if not hist.empty:
-                        hist = hist.dropna(subset=['Close'])
-
-                    if not hist.empty:
-                        new_p = round(float(hist['Close'].iloc[-1]), 2)
-                        old_s['price'] = new_p
-                        
-                        real_date_str = hist.index[-1].strftime('%Y-%m-%d')
-                        old_s['date'] = real_date_str
-                        
-                        meta_info = stock_meta.get(code, {})
-                        old_s['name'] = meta_info.get('name', old_s.get('name', '未知名稱'))
-                        old_s['sector'] = meta_info.get('sector', old_s.get('sector', '未知產業'))
-                        
-                        _, _, ex_date, is_upcoming = get_latest_dividend_info(code, new_p)
-                        if is_upcoming:
-                            old_s['ex_dividend_date'] = ex_date
-                        else:
-                            old_s.pop('ex_dividend_date', None)
-                            if strategy_type == 'LEFT':
-                                old_s['yield_rate'] = 0.0
-                                old_s['yield_formula'] = "⚠️ 已除息或尚未宣告"
-
-                        # === 右側動能歷史同步 ===
-                        if strategy_type == 'RIGHT' and taiwan_50_list:
-                            old_s['cap_size'] = "大型權值股" if code in taiwan_50_list else "中小型股"
-                            
-                            acc_f, acc_t = get_finmind_chips(code)
-                            if acc_f is not None:
-                                chips_sum = acc_f + acc_t
-                                buy_value = chips_sum * 1000 * new_p
-                                buy_value_y = buy_value / 100000000
-                                old_s['buy_value'] = buy_value
-                                old_s['chips_display'] = f"{chips_sum}張 ({buy_value_y:.1f}億)"
-                            
-                            yoy_val = old_s.get('yoy', 0)
-                            if yoy_val is None or math.isnan(float(yoy_val)): yoy_val = 0
-                            
-                            current_buy_val = old_s.get('buy_value', 0)
-                            if current_buy_val is None or math.isnan(float(current_buy_val)): current_buy_val = 0
-                            buy_val_y = current_buy_val / 100000000
-                            
-                            m_score = (min(yoy_val, 100) * 1.5) + (min(buy_val_y, 10) * 5)
-                            if old_s['cap_size'] == "中小型股":
-                                m_score = m_score * 1.2
-                            old_s['m_score'] = round(m_score, 2)
-
-                            if len(hist) > 22:
-                                c_price_hist = round(float(hist['Close'].iloc[-1]), 2)
-                                o_price_hist = float(hist['Open'].iloc[-1])
-                                h_price_hist = float(hist['High'].iloc[-1])
-                                ma5_hist = hist['Close'].iloc[-5:].mean()
-                                ma20_hist = hist['Close'].iloc[-20:].mean()
-                                high_20d_hist = hist['Close'].iloc[-21:-1].max()
-                                vol_5ma_hist = hist['Volume'].iloc[-6:-1].mean()
-                                vol_ratio_hist = hist['Volume'].iloc[-1] / vol_5ma_hist if vol_5ma_hist > 0 else 0
-                                bias20_hist = (c_price_hist - ma20_hist) / ma20_hist * 100
-                                
-                                body_hist = abs(c_price_hist - o_price_hist)
-                                upper_shadow_hist = h_price_hist - max(o_price_hist, c_price_hist)
-                                # 🔥 修正歷史同步區的避雷針邏輯
-                                is_break_reversal_hist = body_hist > 0 and (upper_shadow_hist / body_hist) > 2.0 and (upper_shadow_hist > c_price_hist * 0.025)
-                                
-                                old_s['capital_rank'] = get_right_capital_rank(c_price_hist, ma5_hist, ma20_hist, high_20d_hist, vol_ratio_hist, bias20_hist, is_break_reversal_hist)
-                        
-                        # === 左側價值歷史同步 ===
-                        elif strategy_type == 'LEFT':
-                            if len(hist) >= 60:
-                                closes = hist['Close'].tolist()
-                                c_price_hist = closes[-1]
-                                o_price_hist = float(hist['Open'].iloc[-1])
-                                h_price_hist = float(hist['High'].iloc[-1])
-                                l_price_hist = float(hist['Low'].iloc[-1])
-                                
-                                ma5_hist = sum(closes[-5:]) / 5
-                                ma60_hist = sum(closes[-60:]) / 60
-                                bias60_hist = (c_price_hist - ma60_hist) / ma60_hist * 100
-                                rsi_today_hist = calculate_rsi(closes)
-                                rsi_yest_hist = calculate_rsi(closes[:-1])
-                                
-                                is_above_5ma_hist = c_price_hist > ma5_hist
-                                is_breaking_low_hist = c_price_hist < min(closes[-5:-1])
-                                
-                                body_hist = abs(c_price_hist - o_price_hist)
-                                upper_shadow_hist = h_price_hist - max(o_price_hist, c_price_hist)
-                                lower_shadow_hist = min(o_price_hist, c_price_hist) - l_price_hist
-                                
-                                close_yest_hist = closes[-2]
-                                open_yest_hist = float(hist['Open'].iloc[-2])
-                                is_hammer_hist = (lower_shadow_hist > body_hist * 2.0) and (upper_shadow_hist < body_hist * 0.5)
-                                is_be_hist = (close_yest_hist < open_yest_hist) and (o_price_hist < close_yest_hist) and (c_price_hist > open_yest_hist)
-                                is_strong_rev_hist = is_hammer_hist or is_be_hist
-                                is_anti_knife_hist = lower_shadow_hist > max(body_hist, 0.01) * 1.5
-
-                                old_s['capital_rank'] = get_left_capital_rank(
-                                    is_above_5ma_hist, is_strong_rev_hist, is_anti_knife_hist,
-                                    is_breaking_low_hist, bias60_hist, rsi_yest_hist, rsi_today_hist,
-                                    old_s.get('buy_days', 0), old_s.get('eps', 0)
-                                )
-
-                        updated_history.append(old_s) 
-                        
-                except Exception as e:
-                    print(f"⚠️ 學長 {code} 更新失敗: {e}")
-    except Exception as e:
-        print(f"⚠️ 讀取 {file_name} 失敗: {e}")
-
-    return updated_history
-
+# --- 功能 1: 抓取所有股票代號與產業分類 (精準過濾版) ---
 def update_stock_list_json():
     print("🚀 [Task 1] 開始抓取所有股票代號與產業分類...")
     
+    # 🔥 將原本 app.py 裡的自訂標籤移到這裡，作為「覆寫規則」
     CUSTOM_ETF_META = {
         "00878": {"name": "國泰永續高股息", "type": "高股息ETF", "sector": "ESG/殖利率/填息"},
         "0056":  {"name": "元大高股息", "type": "高股息ETF", "sector": "預測殖利率/填息"},
@@ -499,6 +231,7 @@ def update_stock_list_json():
         "00687B":{"name": "國泰20年美債", "type": "債券型ETF", "sector": "美債殖利率/降息預期"}
     }
 
+    # 菁英股的熱門產業標籤
     CUSTOM_ELITE_DATA = {
         "2330": "半導體", "2317": "AI伺服器", "2454": "IC設計", "2382": "AI伺服器",
         "3231": "AI伺服器", "2376": "板卡", "2603": "航運", "2609": "航運",
@@ -506,31 +239,23 @@ def update_stock_list_json():
     }
     
     urls = [
-        "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2", 
-        "https://isin.twse.com.tw/isin/C_public.jsp?strMode=4"  
+        "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2", # 上市
+        "https://isin.twse.com.tw/isin/C_public.jsp?strMode=4"  # 上櫃
     ]
     
     stock_map = {}
 
-    if os.path.exists('stock_list.json'):
-        try:
-            with open('stock_list.json', 'r', encoding='utf-8') as f:
-                stock_map = json.load(f)
-            print(f"📥 成功載入本地備用名單，共 {len(stock_map)} 筆作為防線基底。")
-        except Exception as e:
-            print(f"⚠️ 讀取本地 stock_list.json 失敗: {e}")
-
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-
     for url in urls:
         try:
-            res = requests.get(url, headers=headers, timeout=10)
+            res = requests.get(url, timeout=10)
+            # 🔥 修復 Pandas 警告，使用 StringIO 包裝 HTML 內容
             dfs = pd.read_html(StringIO(res.text))
             df = dfs[0]
             
             df.columns = df.iloc[0]
             df = df.iloc[1:]
             
+            # 找出欄位名稱
             col_code_name = [c for c in df.columns if "有價證券代號" in str(c)]
             col_sector = [c for c in df.columns if "產業別" in str(c)]
             if not col_code_name: continue
@@ -543,17 +268,20 @@ def update_stock_list_json():
                 sector_val = str(row[sector_col]).strip() if sector_col else "未知產業"
                 if sector_val == 'nan': sector_val = "無"
                 
+                # 抓出代號與名稱
                 match = re.match(r'^([A-Z0-9]{4,6})\s+(.+)', item)
                 if match:
                     code = match.group(1)
                     name = match.group(2).strip()
                     
-                    is_normal_stock = (len(code) == 4 and code.isdigit()) 
-                    is_etf = code.startswith('00')                        
+                    # 🛡️ 【關鍵過濾器】：排除四萬檔權證與可轉債
+                    is_normal_stock = (len(code) == 4 and code.isdigit()) # 條件 1: 四碼純數字 (一般股票)
+                    is_etf = code.startswith('00')                        # 條件 2: 00 開頭 (ETF)
                     
                     if not (is_normal_stock or is_etf):
-                        continue 
+                        continue # 不是一般股票也不是 ETF，直接跳過不收錄
                     
+                    # 套用覆寫規則：若是菁英股，替換為我們自訂的熱門標籤
                     if code in CUSTOM_ELITE_DATA:
                         sector_val = CUSTOM_ELITE_DATA[code]
                         
@@ -563,27 +291,23 @@ def update_stock_list_json():
                         "type": "股票"
                     }
         except Exception as e:
-            print(f"⚠️ [Task 1] 抓取錯誤 ({url}): {e}，將自動沿用本地防線資料。")
+            print(f"⚠️ [Task 1] 抓取錯誤 ({url}): {e}")
 
+    # 將 ETF 專屬資訊合併進去 (覆蓋掉爬蟲抓的生硬分類)
     for code, meta in CUSTOM_ETF_META.items():
         stock_map[code] = meta
 
-    print(f"✅ [Task 1] 完成，共收錄 {len(stock_map)} 檔純股票與ETF -> 存入 stock_list.json")
+    print(f"✅ [Task 1] 完成，共過濾出 {len(stock_map)} 檔純股票與ETF -> 存入 stock_list.json")
 
+    # 存檔 1 (新版結構)
     with open('stock_list.json', 'w', encoding='utf-8') as f:
         json.dump(stock_map, f, ensure_ascii=False, indent=2)
 
+# --- 功能 2: 抓取每日熱門飆股 (建立推薦菜單) ---
 def generate_daily_recommendations():
     print("\n🚀 [Task 2] 開始分析每日熱門飆股...")
     
-    TAIWAN_50 = [
-        "2330", "2317", "2454", "2382", "2308", "2881", "2412", "2882", "2891", "2886", 
-        "1303", "2884", "1216", "2892", "2002", "2885", "3231", "2303", "2890", "2880", 
-        "2883", "5880", "1301", "2345", "3711", "2887", "1101", "2324", "2357", "3045", 
-        "2395", "1326", "2603", "3008", "3036", "6669", "3661", "2408", "2207", "4904", 
-        "1519", "1590", "9904", "2353", "6505", "2368", "7769", "2449", "3037", "3653"
-    ]
-    
+    # 🔥 [新增] 讀取剛剛產生的 stock_list.json，用來查詢名稱與產業別
     stock_meta = {}
     try:
         if os.path.exists('stock_list.json'):
@@ -592,7 +316,11 @@ def generate_daily_recommendations():
     except Exception as e:
         print(f"⚠️ 讀取 stock_list.json 失敗: {e}")
 
-    tw_now = datetime.now(timezone.utc) + timedelta(hours=8)
+    # 設定目標日期 (GitHub Actions 通常在 UTC 時間跑，台灣+8)
+    # 策略：抓取「最新收盤日」。如果今天是週六日，API 會自動給最近的週五資料，或我們指定日期。
+    # 這裡使用簡單策略：抓取當下台灣時間，如果是下午2點後抓今天，否則抓昨天
+    utc_now = datetime.now(timezone.utc)
+    tw_now = utc_now + timedelta(hours=8)
     
     if tw_now.hour < 14: 
         target_date = (tw_now - timedelta(days=1)).strftime('%Y%m%d')
@@ -611,18 +339,22 @@ def generate_daily_recommendations():
         
         if data.get('stat') != 'OK':
             print(f"⚠️ [Task 2] 今日 ({target_date}) 無資料或休市: {data.get('stat')}")
+            # 若無資料(例如假日)，嘗試不帶日期參數，抓取「最新交易日」
             print("🔄 嘗試抓取最新交易日資料...")
             url_latest = "https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=ALLBUT0999"
             res = requests.get(url_latest, timeout=10)
             data = res.json()
         
         if data.get('stat') == 'OK':
+            # 解析資料表
             target_table = None
+            # 尋找包含股價的表格 (通常是 data9 或 title 含 '每日收盤行情')
             if 'tables' in data:
                 for table in data['tables']:
                     if '證券代號' in table.get('fields', []) and '收盤價' in table.get('fields', []):
                         target_table = table
                         break
+            # 舊版 API 相容
             elif 'data9' in data:
                 target_table = {'data': data['data9'], 'fields': data.get('fields9', [])}
 
@@ -630,18 +362,21 @@ def generate_daily_recommendations():
                 raw_data = target_table['data']
                 fields = target_table['fields']
                 
+                # 動態找索引位置
                 try:
                     idx_code = fields.index("證券代號")
-                    idx_turnover = fields.index("成交金額") 
+                    idx_vol = fields.index("成交股數")
+                    idx_turnover = fields.index("成交金額") # 🔥 新增成交金額
                     idx_price = fields.index("收盤價")
                     idx_sign = fields.index("漲跌(+/-)")
                 except:
-                    idx_code, idx_turnover, idx_price, idx_sign = 0, 4, 8, 9 
+                    idx_code, idx_vol, idx_turnover, idx_price, idx_sign = 0, 2, 4, 8, 9 # 預設值
 
                 candidates = []
                 for row in raw_data:
                     try:
                         code = row[idx_code]
+                        # 過濾權證、ETF(00開頭)、DR股(91開頭) -> 若你想保留 ETF，可移除 00 判斷
                         if len(code) > 4 or code.startswith('91') or code.startswith('00'): continue 
                         
                         price_str = row[idx_price].replace(',', '')
@@ -651,23 +386,29 @@ def generate_daily_recommendations():
                         price = float(price_str)
                         turnover = float(turnover_str)
                         
+                        # 🔥 選股邏輯：價格 > 10元
                         if price < 10: continue
                         
                         sign = row[idx_sign]
-                        is_up = ('+' in sign) or ('red' in sign) 
+                        is_up = ('+' in sign) or ('red' in sign) # 簡單判斷漲勢
                         
-                        if is_up and turnover > 100000000: 
+                        # 🔥 動能濾網升級：收紅，且單日成交金額大於 3 億元 (300,000,000)
+                        if is_up and turnover > 300000000: 
+                            # ⚠️ 這裡一定要把 price 存進來，FinMind 才能算金額！
                             candidates.append({"code": code, "turnover": turnover, "price": price, "exchange": "上市"})
                     except: continue
 
+                # 👇👇👇 從這裡開始替換【上櫃 (TPEx) 爬蟲】 👇👇👇
                 print(f"🔄 正在尋找最新上櫃 (TPEx) 行情...")
                 
                 data_otc = None
                 valid_roc_date = None
                 base_date = datetime.strptime(target_date, '%Y%m%d')
                 
+                # 🛡️ 加上 User-Agent 偽裝成瀏覽器，避免被櫃買中心阻擋
                 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
                 
+                # 🔥 主動往回找最近的交易日 (最多找 6 天)
                 for i in range(6):
                     check_date = base_date - timedelta(days=i)
                     roc_year = check_date.year - 1911
@@ -678,6 +419,7 @@ def generate_daily_recommendations():
                         res_otc = requests.get(url_otc, headers=headers, timeout=10)
                         temp_data = res_otc.json()
                         
+                        # 🌟 適應 TPEx 新版 API 結構 (tables)
                         if 'tables' in temp_data and temp_data['tables']:
                             if 'data' in temp_data['tables'][0] and len(temp_data['tables'][0]['data']) > 0:
                                 data_otc = temp_data
@@ -689,8 +431,9 @@ def generate_daily_recommendations():
                     
                     time.sleep(0.5)
 
-                tpex_count = 0  
+                tpex_count = 0  # 📊 [新增] 用來統計有幾檔上櫃股通過 3 億門檻
 
+                # 開始解析新版上櫃資料
                 if data_otc and 'tables' in data_otc and data_otc['tables']:
                     table = data_otc['tables'][0]
                     fields = [str(f).strip() for f in table.get('fields', [])]
@@ -718,6 +461,7 @@ def generate_daily_recommendations():
                             turnover = float(turnover_str)
                             if price < 10: continue
                             
+                            # 🔥 強化版漲跌判斷：處理沒有加號的隱藏紅K
                             raw_sign = str(row[idx_sign]).replace(',', '').strip()
                             is_up = False
                             if '+' in raw_sign or 'red' in raw_sign:
@@ -729,128 +473,78 @@ def generate_daily_recommendations():
                                         is_up = True
                                 except: pass
                             
-                            if is_up and turnover > 100000000: 
+                            # 條件：收紅 且 成交金額 > 3億
+                            if is_up and turnover > 300000000: 
                                 candidates.append({"code": code, "turnover": turnover, "price": price, "exchange": "上櫃"})
                                 tpex_count += 1
                         except: continue
-                    print(f"✅ 上櫃 (TPEx) 飆股已成功合併至候選池！(共 {tpex_count} 檔)")
+                    print(f"✅ 上櫃 (TPEx) 飆股已成功合併至候選池！(共 {tpex_count} 檔通過 3 億門檻)")
                 else:
                     print("❌ 仍無法取得上櫃資料，請檢查 API 狀態。")
+                # 👆👆👆 替換結束 👆👆👆
                             
-                # 🔥 恢復單純的排序邏輯 (拔掉會卡死的 fast_info.shares)
+                # 🔥 1. 依「成交金額 (turnover)」排序，取前 50 檔母體
                 candidates.sort(key=lambda x: x['turnover'], reverse=True)
-                top_60 = candidates[:60]
+                top_50 = candidates[:50]
                 
-                tw_count = sum(1 for x in top_60 if x.get('exchange') == '上市')
-                otc_count = sum(1 for x in top_60 if x.get('exchange') == '上櫃')
+                # 📊 [新增] 統計 Top 50 的板塊分佈
+                tw_count = sum(1 for x in top_50 if x.get('exchange') == '上市')
+                otc_count = sum(1 for x in top_50 if x.get('exchange') == '上櫃')
                 
-                print(f"✅ [Task 2] 第一階段篩選完成，取得 {len(top_60)} 檔強勢資金股 (上市: {tw_count} 檔 / 上櫃: {otc_count} 檔)。")
+                print(f"✅ [Task 2] 第一階段篩選完成，取得 50 檔強勢資金股 (上市: {tw_count} 檔 / 上櫃: {otc_count} 檔)。")
                 print("啟動 FinMind 深度掃描...")
                 final_list = []
                 
-                for item in top_60:
+                # 🔥 2. 針對 50 檔逐一調查基本面與籌碼
+                for item in top_50:
                     code = item['code']
                     turnover = item['turnover']
                     price = item['price']
                     
-                    stock_cap_size = "大型權值股" if code in TAIWAN_50 else "中小型股"
-                    # 🔥 動態調整買超門檻：權值股維持3億，中小型股降為5000萬
-                    min_buy_value = 300000000 if stock_cap_size == "大型權值股" else 50000000
-                    
                     acc_f, acc_t = get_finmind_chips(code)
-                    if acc_f is None: 
-                        continue
-                        
+                    
+                    # ⚠️ 這裡接收剛剛寫好的新版字典
                     yoy_data = get_finmind_revenue_yoy(code) 
                     yoy = yoy_data['yoy']
-                    if yoy is None:
-                        continue
                     
                     chips_sum = acc_f + acc_t
                     buy_value = chips_sum * 1000 * price
                     buy_value_y = round(buy_value / 100000000, 1)
                     
                     print(f"掃描 {code}: YoY={yoy}%, 法人買超={buy_value_y}億")
-                    time.sleep(0.5) 
+                    time.sleep(0.5) # 避免被 API 封鎖
                     
-                    if yoy > 10 and buy_value > min_buy_value:
+                    # 🔥 3. 分析師終極濾網：營收 YoY > 10% 且 法人買超金額 > 3億
+                    # 👇👇👇 從這裡開始替換 👇👇👇
+                    if yoy > 10 and buy_value > 300000000:
                         meta_info = stock_meta.get(code, {})
                         stock_name = meta_info.get('name', '未知名稱')
                         stock_sector = meta_info.get('sector', '未知產業')
-                        stock_exchange = item.get('exchange', '未知')
-                        capital_rank = "C"
-
-                        try:
-                            suffix = ".TWO" if stock_exchange == '上櫃' else ".TW"
-                            hist = yf.Ticker(f"{code}{suffix}").history(period="2mo")
-                            
-                            if not hist.empty:
-                                hist = hist.dropna(subset=['Close'])
-                                
-                            if not hist.empty and len(hist) > 22:
-                                closes = hist['Close']
-                                volumes = hist['Volume']
-                                
-                                latest_k = hist.iloc[-1]
-                                c_price = latest_k['Close']
-                                o_price = latest_k['Open']
-                                h_price = latest_k['High']
-                                
-                                ma20 = closes.iloc[-20:].mean()
-                                ma5 = closes.iloc[-5:].mean()
-                                bias20 = (c_price - ma20) / ma20 * 100
-                                
-                                vol_today = volumes.iloc[-1]
-                                vol_5ma = volumes.iloc[-6:-1].mean()
-                                vol_ratio = vol_today / vol_5ma if vol_5ma > 0 else 0
-                                
-                                high_20d = closes.iloc[-21:-1].max()
-                                
-                                upper_shadow = h_price - max(o_price, c_price)
-                                body = abs(c_price - o_price)
-                                # 🔥 修正避雷針邏輯：加入絕對值判斷
-                                is_break_reversal = body > 0 and (upper_shadow / body) > 2.0 and (upper_shadow > c_price * 0.025)
-                                if is_break_reversal:
-                                    print(f"⚠️ {code} 出現長上影線避雷針，防禦假突破，淘汰！")
-                                    continue
-                                
-                                capital_rank = get_right_capital_rank(c_price, ma5, ma20, high_20d, vol_ratio, bias20, is_break_reversal)
-                        except Exception as e:
-                            pass
                         
-                        score_yoy = min(yoy, 100) * 1.5
-                        capped_buy = min(buy_value_y, 10)
-                        score_chips = capped_buy * 5
-                        m_score = score_yoy + score_chips
-                        if stock_cap_size == "中小型股":
-                            m_score = m_score * 1.2
-                            
-                        final_tag = "外資大買" if acc_f > acc_t else "投信作帳"
-                            
+                        # 取得剛剛貼上的上市/上櫃標籤，並格式化日期 (YYYY-MM-DD)
+                        stock_exchange = item.get('exchange', '未知')
                         date_str = f"{target_date[:4]}-{target_date[4:6]}-{target_date[6:8]}"
-                        _, _, ex_date, _ = get_latest_dividend_info(code, price)
 
                         final_list.append({
-                            "date": date_str,
+                            "date": date_str,          # ✅ 新增：資料日期
                             "code": code,
                             "name": stock_name,
-                            "exchange": stock_exchange,
+                            "exchange": stock_exchange,# ✅ 新增：上市或上櫃
                             "sector": stock_sector,
-                            "cap_size": stock_cap_size, 
-                            "m_score": round(m_score, 2), 
-                            "capital_rank": capital_rank,
-                            "ex_dividend_date": ex_date, 
                             "price": price,
                             "turnover": turnover,
-                            "chips_display": f"{chips_sum}張 ({buy_value_y:.1f}億)",
+                            "chips_display": f"{chips_sum}張 ({buy_value_y}億)",
                             "buy_value": buy_value,
                             "yoy": yoy,
-                            "tag": final_tag,
+                            "tag": "外資大買" if acc_f > acc_t else "投信作帳",
                             "debug_info": yoy_data['debug_info']
                         })
+                    # 👆👆👆 替換到這裡結束 👆👆👆
                 
-                # 第一階段排序，保留 m_score 最高的 15 檔
-                final_list.sort(key=lambda x: x['m_score'], reverse=True)
+                # 🔥 4. 將過關的菁英，依照「買超金額」由大到小排序
+                final_list.sort(key=lambda x: x['buy_value'], reverse=True)
+                
+                # 為了避免 JSON 太大，我們只保留最強的前 15 檔給 app.py 抽樣
                 final_list = final_list[:15]
                 print(f"🎉 掃描結束！共 {len(final_list)} 檔符合【高潛力成長飆股】終極標準。")
             else:
@@ -861,57 +555,28 @@ def generate_daily_recommendations():
     except Exception as e:
         print(f"❌ [Task 2] 發生錯誤: {e}")
 
-    today_codes = {s['code'] for s in final_list}
-    updated_history = sync_historical_data('daily_recommendations.json', today_codes, 'RIGHT', TAIWAN_50)
-    final_list.extend(updated_history)
-
-    merged_list = merge_history_data(final_list, 'daily_recommendations.json', 'm_score')
-    
-    filtered_momentum = []
-    today_dt = datetime.now(timezone.utc) + timedelta(hours=8)
-    
+    # 📦 [修改] 呼叫融合大腦，結合歷史 30 天記憶後存檔
+    merged_list = merge_history_data(final_list, 'daily_recommendations.json', 'buy_value')
     if merged_list:
-        for item in merged_list:
-            try:
-                first_date_str = item.get('first_entry_date', item.get('date'))
-                first_date = datetime.strptime(first_date_str, '%Y-%m-%d').replace(tzinfo=timezone(timedelta(hours=8)))
-                days_diff = (today_dt - first_date).days
-            except:
-                days_diff = 0
-                
-            if days_diff > 30:
-                continue
-                
-            raw_fp = item.get('first_entry_price')
-            if raw_fp is None: raw_fp = item.get('price')
-            if raw_fp is None: raw_fp = 1
-            first_price = float(raw_fp)
-            
-            raw_cp = item.get('price')
-            if raw_cp is None: raw_cp = 1
-            current_price = float(raw_cp)
-            
-            roi = (current_price - first_price) / first_price if first_price > 0 else 0
-            
-            if roi <= -0.08:
-                continue
-                
-            filtered_momentum.append(item)
-
-        # 🚀 最終極雙重排序：S/A/B/C 級別優先，其次為 m_score 動能總分
-        rank_order = {"S": 0, "A": 1, "B": 2, "C": 3}
-        filtered_momentum.sort(key=lambda x: (rank_order.get(x.get('capital_rank', 'C'), 3), -x.get('m_score', 0)))
-
-        clean_filtered_momentum = clean_nan(filtered_momentum) 
         with open('daily_recommendations.json', 'w', encoding='utf-8') as f:
-            json.dump(clean_filtered_momentum, f, ensure_ascii=False, indent=4, allow_nan=False) 
-        print(f"💾 已儲存 daily_recommendations.json (保留 {len(filtered_momentum)} 檔)")
+            json.dump(merged_list, f, ensure_ascii=False, indent=4)
+        print(f"💾 已儲存 daily_recommendations.json (包含歷史共 {len(merged_list)} 檔)")
     else:
         print("⚠️ 歷史與今日皆無資料可存。")
-   
+
+if __name__ == "__main__":
+    # 執行兩個任務
+    update_stock_list_json()
+    generate_daily_recommendations()
+
+#----------3/13增加左側交易-------------
+# ========================================================
+# 🔥 新增功能 3: 【左側交易：三層漏斗價值雷達】(100% 獨立產線)
+# ========================================================
 def generate_left_side_value():
     print("\n🛡️ [Task 3] 啟動左側交易：重裝價值雷達 (三層漏斗過濾)...")
     
+    # 讀取基礎股票池
     stock_meta = {}
     try:
         with open('stock_list.json', 'r', encoding='utf-8') as f:
@@ -920,9 +585,14 @@ def generate_left_side_value():
         print(f"⚠️ 讀取 stock_list.json 失敗，左側雷達中止: {e}")
         return
 
-    print("🌊 [第一層] 大數據降維：尋找流動性 1000萬~5億 的潛伏股...")
+    # ---------------------------------------------------------
+    # 🌊 第一層：大數據降維 (流動性 5,000萬 ~ 3億)
+    # 為了 100% 不干擾右側，我們在左側雷達內自己發動一次輕量級爬蟲
+    # ---------------------------------------------------------
+    print("🌊 [第一層] 大數據降維：尋找流動性 1000萬~3億 的潛伏股...")
     layer1_candidates = []
     
+    # 1. 抓取上市 (TWSE) 最新交易日
     try:
         res = requests.get("https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=ALLBUT0999", timeout=10)
         data = res.json()
@@ -938,143 +608,108 @@ def generate_left_side_value():
                 idx_price = fields.index("收盤價") if "收盤價" in fields else 8
 
                 for row in target_table['data']:
-                    code = str(row[idx_code]).strip()
+                    code = row[idx_code]
                     if code not in stock_meta: continue
-                    if code.startswith('00'): continue 
                     try:
                         turnover = float(row[idx_turnover].replace(',', ''))
                         price = float(row[idx_price].replace(',', ''))
-                        if 10000000 <= turnover <= 500000000 and price >= 10:
+                        # 🔥 條件：成交金額 1000萬 ~ 3億，且股價 > 10元
+                        if 10000000 <= turnover <= 300000000 and price >= 10:
                             layer1_candidates.append({"code": code, "price": price, "market": "TW"})
                     except: pass
     except Exception as e:
         print(f"⚠️ TWSE 第一層抓取錯誤: {e}")
 
-    print(f"🔄 正在尋找最新上櫃 (TPEx) 行情...")
+    # 2. 抓取上櫃 (TPEx) 最新交易日
     try:
         base_date = datetime.now(timezone.utc) + timedelta(hours=8)
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        time.sleep(1) 
-        
-        for i in range(6): 
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        for i in range(6): # 往回找最近的交易日
             check_date = base_date - timedelta(days=i)
             roc_date = f"{check_date.year - 1911}/{check_date.strftime('%m/%d')}"
             url_otc = f"https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d={roc_date}&se=EW"
-            
-            try:
-                res_otc = requests.get(url_otc, headers=headers, timeout=10)
-                if res_otc.status_code == 200:
+            res_otc = requests.get(url_otc, headers=headers, timeout=10)
+            temp_data = res_otc.json()
+            if 'tables' in temp_data and temp_data['tables'] and len(temp_data['tables'][0].get('data', [])) > 0:
+                table = temp_data['tables'][0]
+                fields = [str(f).strip() for f in table.get('fields', [])]
+                idx_code = fields.index("代號") if "代號" in fields else 0
+                idx_turnover = fields.index("成交金額(元)") if "成交金額(元)" in fields else 8
+                idx_price = fields.index("收盤") if "收盤" in fields else 2
+                
+                for row in table['data']:
+                    code = str(row[idx_code]).strip()
+                    if code not in stock_meta: continue
                     try:
-                        temp_data = res_otc.json()
-                    except json.JSONDecodeError:
-                        continue 
-
-                    if 'tables' in temp_data and temp_data['tables'] and len(temp_data['tables'][0].get('data', [])) > 0:
-                        table = temp_data['tables'][0]
-                        fields = [str(f).strip() for f in table.get('fields', [])]
-                        idx_code = fields.index("代號") if "代號" in fields else 0
-                        idx_turnover = fields.index("成交金額(元)") if "成交金額(元)" in fields else 8
-                        idx_price = fields.index("收盤") if "收盤" in fields else 2
-                        
-                        for row in table['data']:
-                            code = str(row[idx_code]).strip()
-                            if code not in stock_meta: continue
-                            if code.startswith('00'): continue 
-                            try:
-                                price_str = str(row[idx_price]).replace(',', '').strip()
-                                turnover_str = str(row[idx_turnover]).replace(',', '').strip()
-                                if price_str in ['----', '--', '除息', '除權'] or turnover_str in ['--', '']: continue
-                                turnover = float(turnover_str)
-                                price = float(price_str)
-                                if 10000000 <= turnover <= 500000000 and price >= 10:
-                                    layer1_candidates.append({"code": code, "price": price, "market": "TWO"})
-                            except: pass
-                        break
-            except Exception: pass
-            time.sleep(0.5)
+                        price_str = str(row[idx_price]).replace(',', '').strip()
+                        turnover_str = str(row[idx_turnover]).replace(',', '').strip()
+                        if price_str in ['----', '--', '除息', '除權'] or turnover_str in ['--', '']: continue
+                        turnover = float(turnover_str)
+                        price = float(price_str)
+                        # 🔥 條件：成交金額 1000萬 ~ 3億，且股價 > 10元
+                        if 10000000 <= turnover <= 300000000 and price >= 10:
+                            layer1_candidates.append({"code": code, "price": price, "market": "TWO"})
+                    except: pass
+                break
+            time.sleep(0.3)
     except Exception as e:
         print(f"⚠️ TPEx 第一層抓取錯誤: {e}")
 
-    print(f"✅ 第一層降維完畢，進入第二層。")
+    print(f"✅ 第一層降維完畢，全市場 2000 檔中，共 {len(layer1_candidates)} 檔符合流動性門檻，進入第二層。")
 
-    print(f"📉 [第二層] 啟動 yfinance 計算 (預計處理 {len(layer1_candidates)} 檔)...")
+    # ---------------------------------------------------------
+    # 📉 第二層：位階與動能過濾 (新增量縮比例與週線運算)
+    # ---------------------------------------------------------
+    print("📉 [第二層] 啟動 yfinance 計算：尋找負乖離、量縮窒息、低波築底...")
     layer2_candidates = []
     
-    for i, item in enumerate(layer1_candidates):
-        if i > 0 and i % 50 == 0: 
-            print(f"   ... 已處理 {i}/{len(layer1_candidates)} 檔")
-            
+    for item in layer1_candidates:
         code = item['code']
         try:
             ticker = yf.Ticker(f"{code}.{item['market']}")
             df = ticker.history(period="6mo") 
-            
-            if not df.empty:
-                df = df.dropna(subset=['Close'])
-                
             if df.empty or len(df) < 60: continue
 
             closes = df['Close'].tolist()
             lows = df['Low'].tolist()
             highs = df['High'].tolist()
-            opens = df['Open'].tolist() 
             volumes = df['Volume'].tolist()
 
             item['real_date'] = df.index[-1].strftime('%Y-%m-%d')
             
             close_today = closes[-1]
-            open_today = opens[-1]
-            low_today = lows[-1]
-            
+            # 🔥 新增這行：強制用 yfinance 的精準收盤價覆寫掉第一層的粗糙價格！
             item['price'] = round(close_today, 2)
             ma60 = sum(closes[-60:]) / 60
-            ma24 = sum(closes[-24:]) / 24 
-            ma6 = sum(closes[-6:]) / 6    
-            ma5 = sum(closes[-5:]) / 5     
-            item['is_above_5ma'] = bool(close_today > ma5) 
-
-            item['rsi_today'] = calculate_rsi(closes)
-            item['rsi_yest'] = calculate_rsi(closes[:-1])
+            ma24 = sum(closes[-24:]) / 24 # 🔥 新增月線
+            ma6 = sum(closes[-6:]) / 6    # 🔥 新增週線
             
             bias60 = (close_today - ma60) / ma60
             bias24 = (close_today - ma24) / ma24
             bias6 = (close_today - ma6) / ma6
 
-            if bias60 >= 0: continue
+            if bias60 >= -0.03: continue
             
             vol_today = volumes[-1]
             ma20_vol = sum(volumes[-20:]) / 20
-
-            if ma20_vol < 500000: continue 
-
-            vol_ratio = vol_today / ma20_vol if ma20_vol > 0 else 1
+            vol_ratio = vol_today / ma20_vol # 🔥 記錄量縮比例，用來算分數
             
-            if (max(highs[-10:]) - min(lows[-10:])) / min(lows[-10:]) >= 0.15: continue
+            if vol_ratio >= 0.8: continue
             
-            if len(closes) >= 6 and (close_today - closes[-6]) / closes[-6] >= 0.08: continue
+            recent_10_high = max(highs[-10:])
+            recent_10_low = min(lows[-10:])
+            amplitude = (recent_10_high - recent_10_low) / recent_10_low
+            
+            if amplitude >= 0.12: continue
+            if (close_today - closes[-5]) / closes[-5] >= 0.05: continue
 
-            item['is_breaking_low'] = bool(close_today < min(closes[-5:-1]))
-                
-            is_red_candle = close_today > open_today
-            lower_shadow = min(open_today, close_today) - low_today
-            upper_shadow = highs[-1] - max(open_today, close_today)
-            body = abs(close_today - open_today)
-            
-            close_yest = closes[-2] if len(closes) > 1 else close_today
-            open_yest = opens[-2] if len(opens) > 1 else open_today
-
-            is_hammer = (lower_shadow > body * 2.0) and (upper_shadow < body * 0.5)
-            is_bullish_engulfing = (close_yest < open_yest) and (open_today < close_yest) and (close_today > open_yest)
-            
-            item['is_strong_reversal'] = bool(is_hammer or is_bullish_engulfing)
-            
-            item['is_anti_knife'] = bool(lower_shadow > max(body, 0.01) * 1.5)
-
+            # 通過第二層考驗，把數據打包給第三層算分
             item['bias60'] = bias60
-            item['bias24'] = bias24 
-            item['bias6'] = bias6   
+            item['bias24'] = bias24 # 傳遞給第三層
+            item['bias6'] = bias6   # 傳遞給第三層
             item['vol_ratio'] = vol_ratio
-            item['vol_5d'] = sum(volumes[-5:]) 
+            item['amplitude'] = amplitude
+            item['ma60'] = ma60
             layer2_candidates.append(item)
             
         except Exception: pass
@@ -1082,203 +717,129 @@ def generate_left_side_value():
 
     print(f"✅ 第二層過濾完畢，剩餘 {len(layer2_candidates)} 檔進入終極基本面與評分查核。")
 
-    print("🏦 [第三層] 啟動 FinMind 查核與動態評分 (API 節流模式啟動)...")
+    # ---------------------------------------------------------
+    # 🏦 第三層：聰明錢定錨與 🌟信心評分系統 (Scoring Model)
+    # ---------------------------------------------------------
+    print("🏦 [第三層] 啟動 FinMind 查核與評分：法人連買、EPS、黃金交叉探測...")
     final_list = []
     
     for item in layer2_candidates:
         code = item['code']
-        print(f"   🔍 查核 {code}...", end=" ")
+        # 🔥 加上 , _ 接住第三個變數
+        eps, yield_rate, _ = get_finmind_fundamentals(code, item['price'], fetch_yield=False)
+
+        if eps <= 0: continue # 🔴 淘汰虧損股
         
-        chips_history = get_finmind_chips_history(code, days=5)
-        if chips_history is None:
-            print("❌ 籌碼API異常")
-            continue
-            
-        buy_days_5d = sum(1 for x in chips_history if x > 0)
-        if buy_days_5d < 1:
-            print("❌ 籌碼掛零")
-            continue
-            
-        net_buy_vol_5d = sum(chips_history)
-        total_vol_5d = item['vol_5d'] / 1000 
-        buy_ratio = (net_buy_vol_5d / total_vol_5d) * 100 if total_vol_5d > 0 else 0
-        net_buy_amount_10k = (net_buy_vol_5d * item['price']) / 10
-        
-        if not ((net_buy_vol_5d > 100 or net_buy_amount_10k > 500) and buy_ratio > 2.0):
-            print("❌ 佔比/金額不足")
-            continue
-        
-        eps, _, _ = get_finmind_fundamentals(code, item['price'], fetch_yield=False)
-        if eps is None:
-            print("❌ EPS API異常")
-            continue
-            
         yoy_data = get_finmind_revenue_yoy(code)
         yoy = yoy_data['yoy']
-        if yoy is None:
-            print("❌ YoY API異常")
-            continue
         
-        yield_rate, yield_formula, ex_date, is_upcoming = get_latest_dividend_info(code, item['price'])
+        chips_history = get_finmind_chips_history(code, days=5)
+        buy_days = sum(1 for x in chips_history if x > 0)
         
-        score = 40 
-        
-        if eps < 0:
-            if item.get('is_breaking_low') and not item.get('is_strong_reversal'):
-                print("❌ 虧損且破底無防守，淘汰")
-                continue
-            if buy_days_5d < 4 and buy_ratio < 5.0:
-                print("❌ 虧損且籌碼集中度不足，淘汰")
-                continue
-            # 🔥 左側價值：恢復原本的 0% 寬容度門檻
-            if yoy <= 0:
-                print("❌ 虧損且營收未反轉，淘汰")
-                continue
-            score -= 5
-            print("   ⚠️ 虧損轉機股通關，扣 5 分")
+        # 門檻：法人至少買 3 天 (或轉機股特例)
+        if buy_days >= 4 or (buy_days == 3 and yoy > -15.0):
             
-        elif item.get('is_breaking_low'):
-            score -= 10
+            # 🎯 啟動計分模型 (Base: 50)
+            score = 50 
             
-        if item.get('is_strong_reversal'): 
-            score += 15
-            print(f"   ⭐ 偵測到強力底部反轉型態！")
-        elif item.get('is_anti_knife'): 
-            score += 5
-        
-        if eps > 0: score += 10
-        if yoy > 10.0: score += 10
-        if yield_rate >= 4.0: score += 10
-        
-        if is_upcoming:
-            score += 10
-            print(f"   💰 具備即將除息優勢 ({ex_date})，額外加 10 分！")
-        
-        if buy_ratio > 5.0: score += 10
-        if buy_days_5d == 5: score += 30
-        elif buy_days_5d == 4: score += 20
-        elif buy_days_5d == 3: score += 10
-        
-        if item['vol_ratio'] < 0.5: score += 10
-        elif item['vol_ratio'] < 0.6: score += 8
-        elif item['vol_ratio'] < 0.7: score += 5
-        
-        bias_pct = item['bias60'] * 100
-        if bias_pct < -8.0: score += 15
-        elif bias_pct < -5.0: score += 10
-        elif bias_pct < -3.0: score += 5
-
-        if item['rsi_yest'] < 35 and item['rsi_today'] > item['rsi_yest']:
-           score += 15
-           print(f"   🚀 RSI超賣區勾頭向上 ({item['rsi_yest']} -> {item['rsi_today']})，加 15 分！")
-
-        if item['is_above_5ma']:
-            trend_status = "🔥 L1_左側起漲"
-            is_qualified = (score >= 60)  
-        else:
-            trend_status = "⏳ L0_左側築底"
-            is_qualified = (score >= 55)
-
-        if not is_qualified:
-            print(f"❌ 資格不符 ({trend_status} 但分數僅 {score} 分)")
-            continue
+            # 1. 籌碼權重 (Max 30)
+            if buy_days == 5: score += 30
+            elif buy_days == 4: score += 20
+            elif buy_days == 3: score += 10
             
-        entry_price = round(item['price'] * 0.99, 2)
-        
-        # 🚀 賦予左側資金優先級別
-        capital_rank = get_left_capital_rank(
-            item['is_above_5ma'], item['is_strong_reversal'], item['is_anti_knife'],
-            item['is_breaking_low'], bias_pct, item['rsi_yest'], item['rsi_today'],
-            buy_days_5d, eps
-        )
+            # 2. 量縮權重 (Max 10)
+            if item['vol_ratio'] < 0.5: score += 10
+            elif item['vol_ratio'] < 0.6: score += 8
+            elif item['vol_ratio'] < 0.7: score += 5
+            
+            # 3. 乖離權重 (Max 10)
+            bias_pct = item['bias60'] * 100
+            if -8.0 <= bias_pct <= -5.0: score += 10
+            elif bias_pct < -8.0: score += 8
+            elif -5.0 < bias_pct <= -3.0: score += 5
 
-        print(f"✅ 最終清單入選 | 級別: {capital_rank} | 分數: {score} | {trend_status}")
+            # 🎯 判斷趨勢狀態 (Trend Status)
+            if item['bias6'] > 0:
+                trend_status = "⭐ 底部起漲 (乖離6已翻正)"
+            else:
+                trend_status = "⏳ 築底量縮中 (乖離6仍為負)"
+                
+            # 計算建議進場價 (取今日收盤與季線的折衷，或是保守取今日收盤往下抓 1%)
+            entry_price = round(item['price'] * 0.99, 2)
 
-        final_list.append({
-            "date": item['real_date'],
-            "code": code,
-            "name": stock_meta[code]['name'],
-            "price": item['price'],
-            "exchange": "上市" if item.get('market') == 'TW' else "上櫃",
-            "score": score,
-            "capital_rank": capital_rank,
-            "trend_status": trend_status,
-            "entry_price": entry_price,
-            "ex_dividend_date": ex_date,  
-            "bias60": f"{bias_pct:.1f}%",
-            "bias24": f"{item['bias24']*100:.1f}%", 
-            "bias6": f"{item['bias6']*100:.1f}%",   
-            "vol_ratio": f"{item['vol_ratio']*100:.1f}%",
-            "eps": eps,
-            "yield_rate": yield_rate,
-            "yield_formula": yield_formula,  
-            "buy_days": buy_days_5d,
-            "tag": "左側黃金坑"
-        })
+            # 🏆 封裝入庫
+            final_list.append({
+                "date": item['real_date'],
+                "code": code,
+                "name": stock_meta[code]['name'],
+                "price": item['price'],
+                "score": score,
+                "trend_status": trend_status,
+                "entry_price": entry_price,
+                "bias60": f"{bias_pct:.1f}%",
+                "bias24": f"{item['bias24']*100:.1f}%", # 🔥 新增
+                "bias6": f"{item['bias6']*100:.1f}%",   # 🔥 新增
+                "vol_ratio": f"{item['vol_ratio']*100:.1f}%",
+                "eps": eps,
+                "yield_rate": yield_rate,
+                "buy_days": buy_days,
+                "tag": "左側黃金坑"
+            })
+            print(f"   🏆 入選: {code} | 分數: {score} | 狀態: {trend_status}")
 
+    # ---------------------------------------------------------
+    # 📦 結算與存檔 (融入 30 天歷史大水庫)
+    # ---------------------------------------------------------
     if final_list:
-        final_list.sort(key=lambda x: x['score'], reverse=True)
-        final_list = final_list[:15]
         print(f"✅ 今日掃描共 {len(final_list)} 檔無敵黃金坑達標。")
     else:
         print("⚠️ 今日掃描無股票通過三層漏斗。")
 
-    today_codes = {s['code'] for s in final_list}
-    updated_history = sync_historical_data('left_side_value.json', today_codes, 'LEFT')
-    final_list.extend(updated_history)
-
     merged_list = merge_history_data(final_list, 'left_side_value.json', 'score')
     
-    filtered_list = []
-    today_dt = datetime.now(timezone.utc) + timedelta(hours=8)
-    
-    if merged_list:
-        for item in merged_list:
-            try:
-                first_date_str = item.get('first_entry_date', item.get('date'))
-                first_date = datetime.strptime(first_date_str, '%Y-%m-%d').replace(tzinfo=timezone(timedelta(hours=8)))
-                days_diff = (today_dt - first_date).days
-            except:
-                days_diff = 0
-                
-            if days_diff > 30:
-                continue
-                
-            raw_fp = item.get('first_entry_price')
-            if raw_fp is None: raw_fp = item.get('price')
-            if raw_fp is None: raw_fp = 1
-            first_price = float(raw_fp)
-            
-            raw_cp = item.get('price')
-            if raw_cp is None: raw_cp = 1
-            current_price = float(raw_cp)
-            
-            roi = (current_price - first_price) / first_price if first_price > 0 else 0
-            
-            if roi <= -0.10:
-                continue
-                
-            filtered_list.append(item)
-
-        # 🚀 最終極雙重排序：左側同享資金優先級別排序機制
-        rank_order = {"S": 0, "A": 1, "B": 2, "C": 3}
-        filtered_list.sort(key=lambda x: (rank_order.get(x.get('capital_rank', 'C'), 3), -x.get('score', 0)))
-
-        clean_filtered_list = clean_nan(filtered_list) 
-        with open('left_side_value.json', 'w', encoding='utf-8') as f:
-            json.dump(clean_filtered_list, f, ensure_ascii=False, indent=4, allow_nan=False) 
-        print(f"💾 已強制更新 left_side_value.json (保留 {len(filtered_list)} 檔)")
-    else:
-        print("⚠️ 歷史與今日皆無資料可存。")
+    with open('left_side_value.json', 'w', encoding='utf-8') as f:
+        json.dump(merged_list, f, ensure_ascii=False, indent=4)
+        print(f"💾 已強制更新 left_side_value.json (包含歷史共 {len(merged_list)} 檔)")
   
+# ========================================================
+# 🔥 新增功能 4: 【金剛不壞：存股打折加碼雷達】(獨立產線)
+# ========================================================
 def generate_deposit_stocks():
     print("\n🏦 [Task 4] 啟動存股打折加碼雷達 (均線乖離策略)...")
   
+    # 📝 你專屬的存股口袋名單 (未來要新增/刪除，只需改這行！)
     DEPOSIT_WATCHLIST = [
-    "2886", "2892", "5880", "2880", "2881", "2882", "2883", "2884", "2891", "2890", 
-    "2330", "2317", "0050", "0056", "00878", "00713", "00919", "00881", "006208", "0052", "00929"
+    # --- 官股金控 (獲利穩健，存股首選) ---
+    "2886",  # 兆豐金
+    "2892",  # 第一金
+    "5880",  # 合庫金
+    "2880",  # 華南金
+
+    # --- 民營金控 (績效領先，股息亮眼) ---
+    "2881",  # 富邦金
+    "2882",  # 國泰金
+    "2883",  # 凱基金 (原開發金)
+    "2884",  # 玉山金
+    "2891",  # 中信金
+    "2890",  # 永豐金
+
+    # --- 電子龍頭 (產業趨勢，增值潛力) ---
+    "2330",  # 台積電
+    "2317",  # 鴻海
+
+    # --- 國民 ETF (分散風險，被動投資) ---
+    "0050",  # 元大台灣50
+    "0056",  # 元大高股息
+    "00878", # 國泰永續高股息
+    "00713", # 元大台灣高息低波
+    "00919", # 群益台灣精選高息
+    "00881", # 國泰台灣5G+
+    "006208",# 富邦台50
+    "0052",  # 富邦台灣科技
+    "00929"  # 復華台灣科技優息
     ]
 
+    # 讀取對照表來抓中文名稱
     stock_meta = {}
     try:
         with open('stock_list.json', 'r', encoding='utf-8') as f:
@@ -1291,24 +852,28 @@ def generate_deposit_stocks():
     for code in DEPOSIT_WATCHLIST:
         print(f"🔍 分析存股標的: {code} ...", end=" ")
         try:
+            # 判斷上市或上櫃 (ETF通常是上市 TW)
             ticker_tw = yf.Ticker(f"{code}.TW")
-            df = ticker_tw.history(period="6mo") 
+            df = ticker_tw.history(period="6mo") # 🔥 改為 6mo 以涵蓋季線
             if df.empty:
                 ticker_two = yf.Ticker(f"{code}.TWO")
                 df = ticker_two.history(period="6mo")
 
+            # 🌟 [新增防呆機制] 清除 Yahoo Finance 的異常空值(NaN)
             if not df.empty:
                 df = df.dropna(subset=['Close'])
             
-            if len(df) < 60: 
+            if len(df) < 60: # 🔥 確保資料夠算 60MA
                 print("資料不足，跳過。")
                 continue
 
             closes = df['Close'].tolist()
             close_today = closes[-1]
 
+            # 👇 確保有加這行，挖出真實 K 線最後交易日
             data_date_str = df.index[-1].strftime('%Y-%m-%d')
             
+            # 🔥 計算多週期均線與乖離率
             ma60 = sum(closes[-60:]) / 60
             ma24 = sum(closes[-24:]) / 24
             ma20 = sum(closes[-20:]) / 20
@@ -1323,8 +888,10 @@ def generate_deposit_stocks():
             bias_6 = (close_today - ma6) / ma6 * 100
             bias_5 = (close_today - ma5) / ma5 * 100
 
+            # 🔥 抓取殖利率 (利用你寫好的函式)
             eps, yield_rate, annual_div = get_finmind_fundamentals(code, close_today)
 
+            # 🧠 核心大腦：5 段式燈號與防飛刀邏輯
             signal = ""
             action = ""
             anti_knife_warning = ""
@@ -1341,10 +908,11 @@ def generate_deposit_stocks():
             elif -8.0 <= bias_20 < -2.0:
                 signal = "🛒 加碼"
                 action = "【小幅加碼】股價委屈，預估殖利率上升，可撿便宜。"
-            else: 
+            else: # bias_20 < -8.0
                 signal = "🚨 重壓"
                 action = "【大舉進場】市場恐慌超跌，長線買點浮現！"
 
+            # 🛡️ 防飛刀濾網 (當月線大跌，但週線還在跌，代表還沒見底)
             if bias_20 < -2.0 and bias_5 < 0:
                 anti_knife_warning = " ⚠️ (跌勢未止，請分批慢接)"
             elif bias_20 < -2.0 and bias_5 > 0:
@@ -1354,7 +922,7 @@ def generate_deposit_stocks():
             
             meta_info = stock_meta.get(code, {})
             deposit_list.append({
-                "date": data_date_str,  
+                "date": data_date_str,  # 👈 2. 新增這行！把剛剛取得的日期塞進每一檔股票裡
                 "code": code,
                 "name": meta_info.get('name', '未知名稱'),
                 "price": round(close_today, 2),
@@ -1363,8 +931,9 @@ def generate_deposit_stocks():
                 "bias_24": round(bias_24, 2), 
                 "bias_20": round(bias_20, 2),
                 "bias_60": round(bias_60, 2), 
-                "yield_rate": yield_rate if yield_rate is not None else 0.0,
-                "yield_formula": f"預估配息 {annual_div if annual_div is not None else 0.0:.3f} / 股價 {close_today:.2f}",
+                "yield_rate": yield_rate,
+                # 🔥 新增這行：將分子(預估配息)與分母(今日收盤價)寫入 JSON，方便核對
+                "yield_formula": f"預估配息 {annual_div:.3f} / 股價 {close_today:.2f}",
                 "signal": signal,
                 "action": action
             })
@@ -1374,16 +943,19 @@ def generate_deposit_stocks():
             print(f"錯誤: {e}")
         time.sleep(0.1)
 
+    # 📦 結算與存檔
     if deposit_list:
+        # 依照乖離率由低到高排序 (越便宜、跌越多的排越上面)
         deposit_list.sort(key=lambda x: x['bias_20'])
         
-        clean_deposit_list = clean_nan(deposit_list) 
         with open('deposit_stocks.json', 'w', encoding='utf-8') as f:
-            json.dump(clean_deposit_list, f, ensure_ascii=False, indent=4, allow_nan=False) 
+            json.dump(deposit_list, f, ensure_ascii=False, indent=4)
         print(f"💾 任務完成！已儲存 deposit_stocks.json (共分析 {len(deposit_list)} 檔存股)")
 
+# ========================================================
+# 最後，記得在你的 __main__ 區塊把這支程式加上去執行！
 if __name__ == "__main__":
     update_stock_list_json()
-    generate_daily_recommendations()  
-    generate_left_side_value()        
-    generate_deposit_stocks()
+    generate_daily_recommendations()  # 右側產線
+    generate_left_side_value()        # 左側產線
+    generate_deposit_stocks()         # 🏦 存股產線 (新增這行！)
