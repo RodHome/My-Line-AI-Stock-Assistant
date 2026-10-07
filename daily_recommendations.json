@@ -44,28 +44,6 @@
         "first_entry_price": 95.0
     },
     {
-        "date": "2026-10-05",
-        "code": "4958",
-        "name": "臻鼎-KY",
-        "exchange": "上市",
-        "sector": "電子零組件業",
-        "price": 576.0,
-        "turnover": 32967295514.0,
-        "chips_display": "37960張 (218.6億)",
-        "buy_value": 21864960000.0,
-        "yoy": 41.05,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 20666117000,
-            "last_rev": 14651388000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(20666117000 - 14651388000) / 14651388000"
-        },
-        "first_entry_date": "2026-05-13",
-        "first_entry_price": 442.5
-    },
-    {
         "date": "2026-10-06",
         "code": "2330",
         "name": "台積電",
@@ -86,6 +64,28 @@
         },
         "first_entry_date": "2026-04-08",
         "first_entry_price": 1950.0
+    },
+    {
+        "date": "2026-10-07",
+        "code": "4958",
+        "name": "臻鼎-KY",
+        "exchange": "上市",
+        "sector": "電子零組件業",
+        "price": 595.0,
+        "turnover": 20860960795.0,
+        "chips_display": "32024張 (190.5億)",
+        "buy_value": 19054280000.0,
+        "yoy": 41.05,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 20666117000,
+            "last_rev": 14651388000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(20666117000 - 14651388000) / 14651388000"
+        },
+        "first_entry_date": "2026-05-13",
+        "first_entry_price": 442.5
     },
     {
         "date": "2026-10-05",
@@ -130,6 +130,28 @@
         },
         "first_entry_date": "2026-08-10",
         "first_entry_price": 1815.0
+    },
+    {
+        "date": "2026-10-07",
+        "code": "2492",
+        "name": "華新科",
+        "exchange": "上市",
+        "sector": "電子零組件業",
+        "price": 428.0,
+        "turnover": 22559356257.0,
+        "chips_display": "37417張 (160.1億)",
+        "buy_value": 16014476000.0,
+        "yoy": 45.54,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 4568665000,
+            "last_rev": 3139068000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(4568665000 - 3139068000) / 3139068000"
+        },
+        "first_entry_date": "2026-09-04",
+        "first_entry_price": 298.5
     },
     {
         "date": "2026-09-28",
@@ -177,28 +199,6 @@
     },
     {
         "date": "2026-10-05",
-        "code": "2344",
-        "name": "華邦電",
-        "exchange": "上市",
-        "sector": "半導體業",
-        "price": 181.0,
-        "turnover": 16225709097.0,
-        "chips_display": "71501張 (129.4億)",
-        "buy_value": 12941681000.0,
-        "yoy": 289.43,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 27308717000,
-            "last_rev": 7012528000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(27308717000 - 7012528000) / 7012528000"
-        },
-        "first_entry_date": "2026-04-24",
-        "first_entry_price": 88.2
-    },
-    {
-        "date": "2026-10-05",
         "code": "2408",
         "name": "南亞科",
         "exchange": "上市",
@@ -242,26 +242,26 @@
         "first_entry_price": 1080.0
     },
     {
-        "date": "2026-10-05",
-        "code": "3189",
-        "name": "景碩",
+        "date": "2026-10-07",
+        "code": "2327",
+        "name": "國巨*",
         "exchange": "上市",
-        "sector": "半導體業",
-        "price": 1095.0,
-        "turnover": 32795151665.0,
-        "chips_display": "9102張 (99.7億)",
-        "buy_value": 9966690000.0,
-        "yoy": 40.58,
-        "tag": "外資大買",
+        "sector": "電子零組件業",
+        "price": 647.0,
+        "turnover": 61232598759.0,
+        "chips_display": "18941張 (122.5億)",
+        "buy_value": 12254827000.0,
+        "yoy": 51.8,
+        "tag": "投信作帳",
         "debug_info": {
-            "this_rev": 4809631000,
-            "last_rev": 3421382000,
+            "this_rev": 16332196000,
+            "last_rev": 10759050000,
             "this_period": "2026/8",
             "last_period": "2025/8",
-            "formula": "(4809631000 - 3421382000) / 3421382000"
+            "formula": "(16332196000 - 10759050000) / 10759050000"
         },
-        "first_entry_date": "2026-04-21",
-        "first_entry_price": 473.5
+        "first_entry_date": "2026-09-07",
+        "first_entry_price": 589.0
     },
     {
         "date": "2026-09-06",
@@ -286,6 +286,50 @@
         "first_entry_price": 943.0
     },
     {
+        "date": "2026-10-07",
+        "code": "3661",
+        "name": "世芯-KY",
+        "exchange": "上市",
+        "sector": "半導體業",
+        "price": 4190.0,
+        "turnover": 14896362005.0,
+        "chips_display": "2045張 (85.7億)",
+        "buy_value": 8568550000.0,
+        "yoy": 273.61,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 8776286000,
+            "last_rev": 2349049000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(8776286000 - 2349049000) / 2349049000"
+        },
+        "first_entry_date": "2026-08-07",
+        "first_entry_price": 3715.0
+    },
+    {
+        "date": "2026-10-07",
+        "code": "3189",
+        "name": "景碩",
+        "exchange": "上市",
+        "sector": "半導體業",
+        "price": 1100.0,
+        "turnover": 14705340410.0,
+        "chips_display": "7617張 (83.8億)",
+        "buy_value": 8378700000.0,
+        "yoy": 44.47,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 5181276000,
+            "last_rev": 3586439000,
+            "this_period": "2026/9",
+            "last_period": "2025/9",
+            "formula": "(5181276000 - 3586439000) / 3586439000"
+        },
+        "first_entry_date": "2026-04-21",
+        "first_entry_price": 473.5
+    },
+    {
         "date": "2026-10-01",
         "code": "3293",
         "name": "鈊象",
@@ -306,28 +350,6 @@
         },
         "first_entry_date": "2026-09-24",
         "first_entry_price": 761.0
-    },
-    {
-        "date": "2026-09-20",
-        "code": "6147",
-        "name": "頎邦",
-        "exchange": "上櫃",
-        "sector": "半導體業",
-        "price": 229.0,
-        "turnover": 16231751500.0,
-        "chips_display": "34923張 (80.0億)",
-        "buy_value": 7997367000.0,
-        "yoy": 43.61,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 2619692000,
-            "last_rev": 1824147000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(2619692000 - 1824147000) / 1824147000"
-        },
-        "first_entry_date": "2026-09-15",
-        "first_entry_price": 200.0
     },
     {
         "date": "2026-10-06",
@@ -374,26 +396,26 @@
         "first_entry_price": 650.0
     },
     {
-        "date": "2026-10-06",
-        "code": "2492",
-        "name": "華新科",
+        "date": "2026-10-07",
+        "code": "1303",
+        "name": "南亞",
         "exchange": "上市",
-        "sector": "電子零組件業",
-        "price": 389.5,
-        "turnover": 21351259314.0,
-        "chips_display": "19878張 (77.4億)",
-        "buy_value": 7742481000.0,
-        "yoy": 45.54,
+        "sector": "塑膠工業",
+        "price": 314.0,
+        "turnover": 37554036242.0,
+        "chips_display": "24217張 (76.0億)",
+        "buy_value": 7604138000.0,
+        "yoy": 46.75,
         "tag": "外資大買",
         "debug_info": {
-            "this_rev": 4568665000,
-            "last_rev": 3139068000,
+            "this_rev": 30601161000,
+            "last_rev": 20853020000,
             "this_period": "2026/8",
             "last_period": "2025/8",
-            "formula": "(4568665000 - 3139068000) / 3139068000"
+            "formula": "(30601161000 - 20853020000) / 20853020000"
         },
-        "first_entry_date": "2026-09-04",
-        "first_entry_price": 298.5
+        "first_entry_date": "2026-04-13",
+        "first_entry_price": 85.7
     },
     {
         "date": "2026-10-05",
@@ -440,26 +462,26 @@
         "first_entry_price": 140.5
     },
     {
-        "date": "2026-10-04",
-        "code": "2327",
-        "name": "國巨*",
+        "date": "2026-10-07",
+        "code": "2344",
+        "name": "華邦電",
         "exchange": "上市",
-        "sector": "電子零組件業",
-        "price": 626.0,
-        "turnover": 66854916325.0,
-        "chips_display": "9997張 (62.6億)",
-        "buy_value": 6258122000.0,
-        "yoy": 51.8,
+        "sector": "半導體業",
+        "price": 179.5,
+        "turnover": 11317802233.0,
+        "chips_display": "38161張 (68.5億)",
+        "buy_value": 6849899500.0,
+        "yoy": 256.67,
         "tag": "外資大買",
         "debug_info": {
-            "this_rev": 16332196000,
-            "last_rev": 10759050000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(16332196000 - 10759050000) / 10759050000"
+            "this_rev": 28248909000,
+            "last_rev": 7920210000,
+            "this_period": "2026/9",
+            "last_period": "2025/9",
+            "formula": "(28248909000 - 7920210000) / 7920210000"
         },
-        "first_entry_date": "2026-09-07",
-        "first_entry_price": 589.0
+        "first_entry_date": "2026-04-24",
+        "first_entry_price": 88.2
     },
     {
         "date": "2026-10-06",
@@ -482,50 +504,6 @@
         },
         "first_entry_date": "2026-03-25",
         "first_entry_price": 2845.0
-    },
-    {
-        "date": "2026-10-06",
-        "code": "1303",
-        "name": "南亞",
-        "exchange": "上市",
-        "sector": "塑膠工業",
-        "price": 293.0,
-        "turnover": 33221857336.0,
-        "chips_display": "19651張 (57.6億)",
-        "buy_value": 5757743000.0,
-        "yoy": 46.75,
-        "tag": "投信作帳",
-        "debug_info": {
-            "this_rev": 30601161000,
-            "last_rev": 20853020000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(30601161000 - 20853020000) / 20853020000"
-        },
-        "first_entry_date": "2026-04-13",
-        "first_entry_price": 85.7
-    },
-    {
-        "date": "2026-10-06",
-        "code": "3661",
-        "name": "世芯-KY",
-        "exchange": "上市",
-        "sector": "半導體業",
-        "price": 4180.0,
-        "turnover": 16381172220.0,
-        "chips_display": "1367張 (57.1億)",
-        "buy_value": 5714060000.0,
-        "yoy": 273.61,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 8776286000,
-            "last_rev": 2349049000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(8776286000 - 2349049000) / 2349049000"
-        },
-        "first_entry_date": "2026-08-07",
-        "first_entry_price": 3715.0
     },
     {
         "date": "2026-09-28",
@@ -572,28 +550,6 @@
         "first_entry_price": 242.5
     },
     {
-        "date": "2026-09-09",
-        "code": "2360",
-        "name": "致茂",
-        "exchange": "上市",
-        "sector": "其他電子業",
-        "price": 2335.0,
-        "turnover": 11646362600.0,
-        "chips_display": "2171張 (50.7億)",
-        "buy_value": 5069285000.0,
-        "yoy": 156.3,
-        "tag": "投信作帳",
-        "debug_info": {
-            "this_rev": 5632401000,
-            "last_rev": 2197611000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(5632401000 - 2197611000) / 2197611000"
-        },
-        "first_entry_date": "2026-03-25",
-        "first_entry_price": 1625.0
-    },
-    {
         "date": "2026-10-04",
         "code": "6770",
         "name": "力積電",
@@ -614,28 +570,6 @@
         },
         "first_entry_date": "2026-03-19",
         "first_entry_price": 75.5
-    },
-    {
-        "date": "2026-08-30",
-        "code": "2301",
-        "name": "光寶科",
-        "exchange": "上市",
-        "sector": "電腦及週邊設備業",
-        "price": 317.5,
-        "turnover": 15778679236.0,
-        "chips_display": "14706張 (46.7億)",
-        "buy_value": 4669155000.0,
-        "yoy": 37.61,
-        "tag": "投信作帳",
-        "debug_info": {
-            "this_rev": 19005536000,
-            "last_rev": 13811634000,
-            "this_period": "2026/7",
-            "last_period": "2025/7",
-            "formula": "(19005536000 - 13811634000) / 13811634000"
-        },
-        "first_entry_date": "2026-04-10",
-        "first_entry_price": 161.5
     },
     {
         "date": "2026-10-06",
@@ -858,6 +792,28 @@
         "first_entry_price": 3520.0
     },
     {
+        "date": "2026-10-07",
+        "code": "6213",
+        "name": "聯茂",
+        "exchange": "上市",
+        "sector": "電子零組件業",
+        "price": 796.0,
+        "turnover": 12693898185.0,
+        "chips_display": "4409張 (35.1億)",
+        "buy_value": 3509564000.0,
+        "yoy": 110.74,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 5824212000,
+            "last_rev": 2763756000,
+            "this_period": "2026/9",
+            "last_period": "2025/9",
+            "formula": "(5824212000 - 2763756000) / 2763756000"
+        },
+        "first_entry_date": "2026-06-01",
+        "first_entry_price": 295.0
+    },
+    {
         "date": "2026-09-17",
         "code": "2609",
         "name": "陽明",
@@ -924,26 +880,48 @@
         "first_entry_price": 2015.0
     },
     {
-        "date": "2026-10-06",
-        "code": "6213",
-        "name": "聯茂",
-        "exchange": "上市",
-        "sector": "電子零組件業",
-        "price": 787.0,
-        "turnover": 25478769781.0,
-        "chips_display": "4274張 (33.6億)",
-        "buy_value": 3363638000.0,
-        "yoy": 110.74,
-        "tag": "投信作帳",
+        "date": "2026-10-07",
+        "code": "6147",
+        "name": "頎邦",
+        "exchange": "上櫃",
+        "sector": "半導體業",
+        "price": 231.5,
+        "turnover": 18148312500.0,
+        "chips_display": "14610張 (33.8億)",
+        "buy_value": 3382215000.0,
+        "yoy": 43.61,
+        "tag": "外資大買",
         "debug_info": {
-            "this_rev": 5824212000,
-            "last_rev": 2763756000,
-            "this_period": "2026/9",
-            "last_period": "2025/9",
-            "formula": "(5824212000 - 2763756000) / 2763756000"
+            "this_rev": 2619692000,
+            "last_rev": 1824147000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(2619692000 - 1824147000) / 1824147000"
         },
-        "first_entry_date": "2026-06-01",
-        "first_entry_price": 295.0
+        "first_entry_date": "2026-09-15",
+        "first_entry_price": 200.0
+    },
+    {
+        "date": "2026-10-07",
+        "code": "2301",
+        "name": "光寶科",
+        "exchange": "上市",
+        "sector": "電腦及週邊設備業",
+        "price": 300.0,
+        "turnover": 4950425815.0,
+        "chips_display": "11067張 (33.2億)",
+        "buy_value": 3320100000.0,
+        "yoy": 25.2,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 19592400000,
+            "last_rev": 15648789000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(19592400000 - 15648789000) / 15648789000"
+        },
+        "first_entry_date": "2026-04-10",
+        "first_entry_price": 161.5
     },
     {
         "date": "2026-09-23",
@@ -990,6 +968,28 @@
         "first_entry_price": 337.5
     },
     {
+        "date": "2026-10-07",
+        "code": "1326",
+        "name": "台化",
+        "exchange": "上市",
+        "sector": "塑膠工業",
+        "price": 75.8,
+        "turnover": 4615775162.0,
+        "chips_display": "39572張 (30.0億)",
+        "buy_value": 2999557600.0,
+        "yoy": 31.7,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 30558197000,
+            "last_rev": 23203688000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(30558197000 - 23203688000) / 23203688000"
+        },
+        "first_entry_date": "2026-07-22",
+        "first_entry_price": 70.6
+    },
+    {
         "date": "2026-10-06",
         "code": "6257",
         "name": "矽格",
@@ -1034,28 +1034,6 @@
         "first_entry_price": 16555.0
     },
     {
-        "date": "2026-10-05",
-        "code": "5483",
-        "name": "中美晶",
-        "exchange": "上櫃",
-        "sector": "半導體業",
-        "price": 221.5,
-        "turnover": 10375989500.0,
-        "chips_display": "12533張 (27.8億)",
-        "buy_value": 2776059500.0,
-        "yoy": 11.68,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 6716682000,
-            "last_rev": 6014229000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(6716682000 - 6014229000) / 6014229000"
-        },
-        "first_entry_date": "2026-09-22",
-        "first_entry_price": 195.0
-    },
-    {
         "date": "2026-09-30",
         "code": "6505",
         "name": "台塑化",
@@ -1076,6 +1054,28 @@
         },
         "first_entry_date": "2026-09-29",
         "first_entry_price": 94.3
+    },
+    {
+        "date": "2026-10-07",
+        "code": "2360",
+        "name": "致茂",
+        "exchange": "上市",
+        "sector": "其他電子業",
+        "price": 2400.0,
+        "turnover": 12878769319.0,
+        "chips_display": "1148張 (27.6億)",
+        "buy_value": 2755200000.0,
+        "yoy": 206.47,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 6859602000,
+            "last_rev": 2238275000,
+            "this_period": "2026/9",
+            "last_period": "2025/9",
+            "formula": "(6859602000 - 2238275000) / 2238275000"
+        },
+        "first_entry_date": "2026-03-25",
+        "first_entry_price": 1625.0
     },
     {
         "date": "2026-10-05",
@@ -1188,6 +1188,28 @@
         "first_entry_price": 468.0
     },
     {
+        "date": "2026-10-07",
+        "code": "1815",
+        "name": "富喬",
+        "exchange": "上櫃",
+        "sector": "電子零組件業",
+        "price": 132.5,
+        "turnover": 13851671500.0,
+        "chips_display": "18538張 (24.6億)",
+        "buy_value": 2456285000.0,
+        "yoy": 79.21,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 912400000,
+            "last_rev": 509132000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(912400000 - 509132000) / 509132000"
+        },
+        "first_entry_date": "2026-08-19",
+        "first_entry_price": 98.0
+    },
+    {
         "date": "2026-10-06",
         "code": "5347",
         "name": "世界",
@@ -1298,28 +1320,6 @@
         "first_entry_price": 938.0
     },
     {
-        "date": "2026-09-11",
-        "code": "1815",
-        "name": "富喬",
-        "exchange": "上櫃",
-        "sector": "電子零組件業",
-        "price": 127.5,
-        "turnover": 5579529000.0,
-        "chips_display": "17336張 (22.1億)",
-        "buy_value": 2210340000.0,
-        "yoy": 79.21,
-        "tag": "投信作帳",
-        "debug_info": {
-            "this_rev": 912400000,
-            "last_rev": 509132000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(912400000 - 509132000) / 509132000"
-        },
-        "first_entry_date": "2026-08-19",
-        "first_entry_price": 98.0
-    },
-    {
         "date": "2026-09-21",
         "code": "3665",
         "name": "貿聯-KY",
@@ -1408,6 +1408,28 @@
         "first_entry_price": 195.0
     },
     {
+        "date": "2026-10-07",
+        "code": "5483",
+        "name": "中美晶",
+        "exchange": "上櫃",
+        "sector": "半導體業",
+        "price": 224.0,
+        "turnover": 6469210000.0,
+        "chips_display": "8814張 (19.7億)",
+        "buy_value": 1974336000.0,
+        "yoy": 11.68,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 6716682000,
+            "last_rev": 6014229000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(6716682000 - 6014229000) / 6014229000"
+        },
+        "first_entry_date": "2026-09-22",
+        "first_entry_price": 195.0
+    },
+    {
         "date": "2026-09-10",
         "code": "3006",
         "name": "晶豪科",
@@ -1472,6 +1494,28 @@
         },
         "first_entry_date": "2026-09-10",
         "first_entry_price": 3670.0
+    },
+    {
+        "date": "2026-10-07",
+        "code": "3707",
+        "name": "漢磊",
+        "exchange": "上櫃",
+        "sector": "半導體業",
+        "price": 89.9,
+        "turnover": 3040347700.0,
+        "chips_display": "20531張 (18.5億)",
+        "buy_value": 1845736900.0,
+        "yoy": 29.54,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 659489000,
+            "last_rev": 509097000,
+            "this_period": "2026/8",
+            "last_period": "2025/8",
+            "formula": "(659489000 - 509097000) / 509097000"
+        },
+        "first_entry_date": "2026-10-07",
+        "first_entry_price": 89.9
     },
     {
         "date": "2026-09-06",
@@ -1714,28 +1758,6 @@
         },
         "first_entry_date": "2026-09-02",
         "first_entry_price": 157.5
-    },
-    {
-        "date": "2026-09-09",
-        "code": "1326",
-        "name": "台化",
-        "exchange": "上市",
-        "sector": "塑膠工業",
-        "price": 71.8,
-        "turnover": 2685134038.0,
-        "chips_display": "17580張 (12.6億)",
-        "buy_value": 1262244000.0,
-        "yoy": 31.7,
-        "tag": "外資大買",
-        "debug_info": {
-            "this_rev": 30558197000,
-            "last_rev": 23203688000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(30558197000 - 23203688000) / 23203688000"
-        },
-        "first_entry_date": "2026-07-22",
-        "first_entry_price": 70.6
     },
     {
         "date": "2026-09-08",
