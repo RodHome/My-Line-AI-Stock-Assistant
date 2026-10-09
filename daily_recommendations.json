@@ -176,7 +176,7 @@
         "first_entry_price": 270.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "3661",
         "name": "世芯-KY",
         "exchange": "上市",
@@ -264,7 +264,7 @@
         "first_entry_price": 589.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "2408",
         "name": "南亞科",
         "exchange": "上市",
@@ -286,7 +286,7 @@
         "first_entry_price": 226.5
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "2383",
         "name": "台光電",
         "exchange": "上市",
@@ -418,7 +418,7 @@
         "first_entry_price": 85.7
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "2313",
         "name": "華通",
         "exchange": "上市",
@@ -616,7 +616,7 @@
         "first_entry_price": 103.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "1326",
         "name": "台化",
         "exchange": "上市",
@@ -638,7 +638,7 @@
         "first_entry_price": 70.6
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "2368",
         "name": "金像電",
         "exchange": "上市",
@@ -647,14 +647,14 @@
         "turnover": 12284938155.0,
         "chips_display": "3221張 (41.4億)",
         "buy_value": 4138985000.0,
-        "yoy": 76.39,
+        "yoy": 55.46,
         "tag": "投信作帳",
         "debug_info": {
-            "this_rev": 10383971000,
-            "last_rev": 5886997000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(10383971000 - 5886997000) / 5886997000"
+            "this_rev": 9319805000,
+            "last_rev": 5994877000,
+            "this_period": "2026/9",
+            "last_period": "2025/9",
+            "formula": "(9319805000 - 5994877000) / 5994877000"
         },
         "first_entry_date": "2026-10-08",
         "first_entry_price": 1285.0
@@ -924,7 +924,7 @@
         "first_entry_price": 337.5
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "6223",
         "name": "旺矽",
         "exchange": "上櫃",
@@ -933,20 +933,20 @@
         "turnover": 2626510000.0,
         "chips_display": "579張 (32.3億)",
         "buy_value": 3227925000.0,
-        "yoy": 69.87,
+        "yoy": 82.19,
         "tag": "外資大買",
         "debug_info": {
-            "this_rev": 2048171000,
-            "last_rev": 1205695000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(2048171000 - 1205695000) / 1205695000"
+            "this_rev": 2047814000,
+            "last_rev": 1123984000,
+            "this_period": "2026/9",
+            "last_period": "2025/9",
+            "formula": "(2047814000 - 1123984000) / 1123984000"
         },
         "first_entry_date": "2026-03-30",
         "first_entry_price": 3735.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "6213",
         "name": "聯茂",
         "exchange": "上市",
@@ -968,7 +968,7 @@
         "first_entry_price": 295.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "1815",
         "name": "富喬",
         "exchange": "上櫃",
@@ -1320,7 +1320,7 @@
         "first_entry_price": 136.5
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "8021",
         "name": "尖點",
         "exchange": "上市",
@@ -1364,7 +1364,7 @@
         "first_entry_price": 195.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "2412",
         "name": "中華電",
         "exchange": "上市",
@@ -1386,7 +1386,7 @@
         "first_entry_price": 140.5
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "3624",
         "name": "光頡",
         "exchange": "上櫃",
@@ -1540,7 +1540,7 @@
         "first_entry_price": 36.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "3711",
         "name": "日月光投控",
         "exchange": "上市",
@@ -1606,7 +1606,7 @@
         "first_entry_price": 387.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "8996",
         "name": "高力",
         "exchange": "上市",
@@ -1650,7 +1650,7 @@
         "first_entry_price": 988.0
     },
     {
-        "date": "2026-10-08",
+        "date": "2026-10-09",
         "code": "6257",
         "name": "矽格",
         "exchange": "上市",
