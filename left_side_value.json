@@ -911,25 +911,6 @@
         "first_entry_price": 139.5
     },
     {
-        "date": "2026-10-08",
-        "code": "8105",
-        "name": "凌巨",
-        "price": 15.0,
-        "score": 80,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 14.85,
-        "bias60": "-3.6%",
-        "bias24": "-0.1%",
-        "bias6": "-1.7%",
-        "vol_ratio": "62.3%",
-        "eps": 0.16,
-        "yield_rate": 0.0,
-        "buy_days": 4,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-10-07",
-        "first_entry_price": 15.15
-    },
-    {
         "date": "2026-10-13",
         "code": "2406",
         "name": "國碩",
@@ -2410,6 +2391,25 @@
         "first_entry_price": 395.0
     },
     {
+        "date": "2026-10-15",
+        "code": "8105",
+        "name": "凌巨",
+        "price": 14.55,
+        "score": 70,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 14.4,
+        "bias60": "-5.6%",
+        "bias24": "-2.7%",
+        "bias6": "-2.1%",
+        "vol_ratio": "72.5%",
+        "eps": 0.16,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-10-07",
+        "first_entry_price": 15.15
+    },
+    {
         "date": "2026-10-14",
         "code": "5471",
         "name": "松翰",
@@ -3009,6 +3009,25 @@
         "tag": "左側黃金坑",
         "first_entry_date": "2026-10-14",
         "first_entry_price": 32.4
+    },
+    {
+        "date": "2026-10-15",
+        "code": "1201",
+        "name": "味全",
+        "price": 11.5,
+        "score": 70,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": 11.38,
+        "bias60": "-4.4%",
+        "bias24": "-1.7%",
+        "bias6": "0.0%",
+        "vol_ratio": "68.0%",
+        "eps": 0.28,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-10-15",
+        "first_entry_price": 11.5
     },
     {
         "date": "2026-10-13",
