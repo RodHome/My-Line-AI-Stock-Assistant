@@ -927,25 +927,6 @@
         "capital_rank": "A"
     },
     {
-        "date": "2026-09-07",
-        "code": "4966",
-        "name": "譜瑞-KY",
-        "price": 566.0,
-        "score": 80,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 560.34,
-        "bias60": "-5.7%",
-        "bias24": "-1.6%",
-        "bias6": "-1.0%",
-        "vol_ratio": "35.5%",
-        "eps": 7.66,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-09-07",
-        "first_entry_price": 566.0
-    },
-    {
         "date": "2026-09-20",
         "code": "2316",
         "name": "楠梓電",
@@ -1402,7 +1383,7 @@
         "first_entry_price": 42.8
     },
     {
-        "date": "2026-11-05",
+        "date": "2026-11-06",
         "code": "1615",
         "name": "大山",
         "price": NaN,
@@ -1412,7 +1393,7 @@
         "bias60": "nan%",
         "bias24": "nan%",
         "bias6": "nan%",
-        "vol_ratio": "30.4%",
+        "vol_ratio": "39.6%",
         "eps": 1.59,
         "yield_rate": 0.0,
         "buy_days": 4,
@@ -3110,25 +3091,6 @@
         "capital_rank": "A"
     },
     {
-        "date": "2026-09-07",
-        "code": "4162",
-        "name": "智擎",
-        "price": 57.0,
-        "score": 70,
-        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
-        "entry_price": 56.43,
-        "bias60": "-5.3%",
-        "bias24": "-4.6%",
-        "bias6": "-1.6%",
-        "vol_ratio": "78.0%",
-        "eps": 0.93,
-        "yield_rate": 0.0,
-        "buy_days": 3,
-        "tag": "左側黃金坑",
-        "first_entry_date": "2026-09-07",
-        "first_entry_price": 57.0
-    },
-    {
         "date": "2026-10-02",
         "code": "3709",
         "name": "鑫聯大投控",
@@ -4797,6 +4759,25 @@
         "buy_days": 3,
         "tag": "左側黃金坑",
         "first_entry_date": "2026-11-05",
+        "first_entry_price": NaN
+    },
+    {
+        "date": "2026-11-06",
+        "code": "9908",
+        "name": "大台北",
+        "price": NaN,
+        "score": 60,
+        "trend_status": "⏳ 築底量縮中 (乖離6仍為負)",
+        "entry_price": NaN,
+        "bias60": "nan%",
+        "bias24": "nan%",
+        "bias6": "nan%",
+        "vol_ratio": "79.2%",
+        "eps": 0.77,
+        "yield_rate": 0.0,
+        "buy_days": 3,
+        "tag": "左側黃金坑",
+        "first_entry_date": "2026-11-06",
         "first_entry_price": NaN
     }
 ]
