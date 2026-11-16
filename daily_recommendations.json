@@ -1012,28 +1012,6 @@
         "first_entry_price": 790.0
     },
     {
-        "date": "2026-09-21",
-        "code": "3665",
-        "name": "貿聯-KY",
-        "exchange": "上市",
-        "sector": "其他電子業",
-        "price": 2300.0,
-        "turnover": 10214618145.0,
-        "chips_display": "959張 (22.1億)",
-        "buy_value": 2205700000.0,
-        "yoy": 53.99,
-        "tag": "投信作帳",
-        "debug_info": {
-            "this_rev": 8891805000,
-            "last_rev": 5774218000,
-            "this_period": "2026/8",
-            "last_period": "2025/8",
-            "formula": "(8891805000 - 5774218000) / 5774218000"
-        },
-        "first_entry_date": "2026-09-18",
-        "first_entry_price": 2210.0
-    },
-    {
         "date": "2026-10-27",
         "code": "3034",
         "name": "聯詠",
@@ -2660,6 +2638,28 @@
         },
         "first_entry_date": "2026-11-11",
         "first_entry_price": 388.5
+    },
+    {
+        "date": "2026-11-16",
+        "code": "2468",
+        "name": "未知名稱",
+        "exchange": "上市",
+        "sector": "未知產業",
+        "price": 81.6,
+        "turnover": 613655032.0,
+        "chips_display": "5812張 (4.7億)",
+        "buy_value": 474259199.99999994,
+        "yoy": 20.0,
+        "tag": "外資大買",
+        "debug_info": {
+            "this_rev": 210155000,
+            "last_rev": 175129000,
+            "this_period": "2026/10",
+            "last_period": "2025/10",
+            "formula": "(210155000 - 175129000) / 175129000"
+        },
+        "first_entry_date": "2026-11-16",
+        "first_entry_price": 81.6
     },
     {
         "date": "2026-11-12",
